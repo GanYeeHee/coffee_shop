@@ -1,6 +1,6 @@
 -- Database creation for testing environment
-CREATE DATABASE IF NOT EXISTS `coffee_shop_v2`;
-USE `coffee_shop_v2`;
+CREATE DATABASE IF NOT EXISTS `coffee_shop`;
+USE `coffee_shop`;
 
 -- --------------------------------------------------------
 -- RESET DATABASE (Safe Dropping with Foreign Key Checks Disabled)
