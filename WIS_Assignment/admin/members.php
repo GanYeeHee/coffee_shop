@@ -69,6 +69,12 @@ if ($expand_user_id > 0) {
     $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$expand_user_id]);
     $expand_user = $stmt->fetch();
+
+    if ($expand_user) {
+        $sec_stmt = $pdo->prepare("SELECT security_question FROM user_security_answers WHERE user_id = ? LIMIT 1");
+        $sec_stmt->execute([$expand_user_id]);
+        $expand_user['security_question'] = $sec_stmt->fetchColumn() ?: 'Not set';
+    }
 }
 
 // Flash Messages

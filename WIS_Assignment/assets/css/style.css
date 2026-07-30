@@ -558,6 +558,33 @@ textarea.form-control {
     object-fit: cover;
 }
 
+.gallery-thumb-strip {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.gallery-thumb {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.gallery-thumb:hover {
+    opacity: 1;
+}
+
+.gallery-thumb.active {
+    border-color: var(--accent);
+    opacity: 1;
+}
+
 .detail-info {
     display: flex;
     flex-direction: column;

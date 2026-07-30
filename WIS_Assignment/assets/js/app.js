@@ -80,7 +80,14 @@ $(document).ready(function() {
         }
     });
 
-    // 4. Client-side Card Input Masking and Check (UX Enhancement)
+    // 4. Product Gallery Thumbnail Switching
+    $(document).on('click', '.gallery-thumb', function () {
+        $('.detail-img').attr('src', $(this).data('full'));
+        $('.gallery-thumb').removeClass('active');
+        $(this).addClass('active');
+    });
+
+    // 5. Client-side Card Input Masking and Check (UX Enhancement)
     var $cardInput = $('#field-card_number');
     if ($cardInput.length) {
         $cardInput.on('input', function() {
@@ -93,5 +100,48 @@ $(document).ready(function() {
             this.value = formatted ? formatted.join(' ') : '';
         });
     }
+
+    // 6. Checkout: Fulfillment Type Toggle (Delivery vs Pickup)
+    $(document).on('change', 'input[name=fulfillment_type]', function () {
+        $('#delivery-section').toggle($(this).val() === 'delivery');
+    });
+
+    // 7. Checkout: Payment Method Toggle (Card fields shown only for Card)
+    $(document).on('change', 'input[name=payment_method]', function () {
+        $('#card-payment-section').toggle($(this).val() === 'card');
+    });
+
+    // 8. Checkout: Saved Address vs New Address Toggle
+    $(document).on('change', '#field-address_id', function () {
+        $('#new-address-section').toggle($(this).val() === 'new');
+    });
+
+    // 9. Checkout: Apply Voucher Code (AJAX preview - server always re-validates on submit)
+    $(document).on('click', '#apply-voucher-btn', function (e) {
+        e.preventDefault();
+        var code = $('#field-voucher_code').val();
+        var $msg = $('#voucher-message');
+
+        $.ajax({
+            url: 'checkout.php',
+            type: 'POST',
+            data: { action: 'validate_voucher', code: code },
+            dataType: 'json',
+            success: function (response) {
+                if (response.success) {
+                    $('#discount-line').css('display', 'flex');
+                    $('#discount-amount').text('-$' + response.discount_amount.toFixed(2));
+                    $('#grand-total-amount').text('$' + response.new_total.toFixed(2));
+                    $msg.text('Voucher applied!').css('color', 'var(--success)');
+                } else {
+                    $('#discount-line').hide();
+                    $msg.text(response.message || 'Invalid voucher.').css('color', 'var(--danger)');
+                }
+            },
+            error: function () {
+                $msg.text('Could not validate voucher.').css('color', 'var(--danger)');
+            }
+        });
+    });
 
 });

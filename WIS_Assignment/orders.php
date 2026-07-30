@@ -84,13 +84,18 @@ if ($expand_order_id > 0) {
     $expand_order = $stmt->fetch();
     
     if ($expand_order) {
-        $stmt = $pdo->prepare("SELECT oi.quantity, oi.price as checkout_price, p.name, p.photo, p.id as product_id, cat.name as category_name 
-                               FROM order_items oi 
-                               LEFT JOIN products p ON oi.product_id = p.id 
-                               LEFT JOIN categories cat ON p.category_id = cat.id 
+        $stmt = $pdo->prepare("SELECT oi.quantity, oi.price as checkout_price, oi.customization, p.name, p.id as product_id, cat.name as category_name,
+                               (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image
+                               FROM order_items oi
+                               LEFT JOIN products p ON oi.product_id = p.id
+                               LEFT JOIN categories cat ON p.category_id = cat.id
                                WHERE oi.order_id = ?");
         $stmt->execute([$expand_order_id]);
         $expand_items = $stmt->fetchAll();
+
+        $pay_stmt = $pdo->prepare("SELECT * FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1");
+        $pay_stmt->execute([$expand_order_id]);
+        $expand_payment = $pay_stmt->fetch();
     }
 }
 ?>
@@ -169,8 +174,18 @@ if ($expand_order_id > 0) {
                 <div style="font-size: 0.95rem; display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.5rem;">
                     <div><strong>Order Status:</strong> <span class="badge badge-<?= strtolower($expand_order['status']) ?>"><?= htmlspecialchars($expand_order['status']) ?></span></div>
                     <div><strong>Date Ordered:</strong> <?= date('d M Y, h:i A', strtotime($expand_order['order_date'])) ?></div>
-                    <div><strong>Payment Method:</strong> Fake Card (<?= htmlspecialchars($expand_order['card_number']) ?>)</div>
-                    <div><strong>Deliver To:</strong><br><span style="color: var(--text-muted); display: block; padding-left: 0.5rem; border-left: 2px solid var(--border-color); margin-top: 0.2rem;"><?= nl2br(htmlspecialchars($expand_order['shipping_address'])) ?></span></div>
+                    <div><strong>Customer:</strong> <?= htmlspecialchars($expand_order['customer_name']) ?> (<?= htmlspecialchars($expand_order['customer_phone']) ?>)</div>
+                    <div><strong>Payment Method:</strong> <?= htmlspecialchars(ucfirst(str_replace('_', ' ', $expand_payment['payment_method'] ?? 'N/A'))) ?></div>
+                    <div><strong>Payment Reference:</strong> <?= htmlspecialchars($expand_payment['transaction_id'] ?? 'Pay on pickup/delivery') ?></div>
+                    <div><strong>Payment Status:</strong> <span class="badge badge-<?= strtolower($expand_payment['payment_status'] ?? '') ?>"><?= htmlspecialchars(ucfirst($expand_payment['payment_status'] ?? 'N/A')) ?></span></div>
+                    <?php if ($expand_order['fulfillment_type'] === 'delivery'): ?>
+                        <div><strong>Deliver To:</strong><br><span style="color: var(--text-muted); display: block; padding-left: 0.5rem; border-left: 2px solid var(--border-color); margin-top: 0.2rem;"><?= nl2br(htmlspecialchars($expand_order['shipping_address'])) ?></span></div>
+                    <?php else: ?>
+                        <div><strong>Fulfillment:</strong> Pickup at Store</div>
+                    <?php endif; ?>
+                    <?php if ($expand_order['discount_amount'] > 0): ?>
+                        <div><strong>Voucher Discount:</strong> -$<?= number_format($expand_order['discount_amount'], 2) ?></div>
+                    <?php endif; ?>
                 </div>
                 
                 <table class="table" style="font-size: 0.9rem; margin-bottom: 1.5rem;">
@@ -188,6 +203,9 @@ if ($expand_order_id > 0) {
                                 <td>
                                     <strong><?= htmlspecialchars($item['name'] ?? 'Removed Product') ?></strong><br>
                                     <span style="font-size: 0.75rem; color: var(--text-muted);"><?= htmlspecialchars($item['category_name'] ?? '') ?></span>
+                                    <?php if (!empty($item['customization'])): ?>
+                                        <br><span style="font-size: 0.75rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?= $item['quantity'] ?></td>
                                 <td>$<?= number_format($item['checkout_price'], 2) ?></td>

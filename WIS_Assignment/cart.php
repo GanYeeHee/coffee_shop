@@ -4,77 +4,81 @@ require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
 
+/**
+ * Add or merge a quantity into the cart, keyed on (user_id, product_id, customization)
+ * to match the cart table's unique key. Caps the resulting quantity at available stock.
+ */
+function cart_upsert(PDO $pdo, $user_id, $product_id, $add_qty, $customization, $stock) {
+    $stmt = $pdo->prepare("SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ? AND customization = ?");
+    $stmt->execute([$user_id, $product_id, $customization]);
+    $existing = $stmt->fetch();
+
+    $requested_qty = ($existing ? $existing['quantity'] : 0) + $add_qty;
+    $new_qty = min($requested_qty, $stock);
+
+    if ($existing) {
+        $pdo->prepare("UPDATE cart SET quantity = ? WHERE id = ?")->execute([$new_qty, $existing['id']]);
+    } else {
+        $pdo->prepare("INSERT INTO cart (user_id, product_id, quantity, customization) VALUES (?, ?, ?, ?)")
+            ->execute([$user_id, $product_id, $new_qty, $customization]);
+    }
+
+    return ['new_qty' => $new_qty, 'capped' => $new_qty < $requested_qty];
+}
+
 // Handle AJAX cart addition separately to avoid rendering layouts
 if (isset($_POST['action']) && $_POST['action'] === 'ajax_add') {
     header('Content-Type: application/json');
-    
+
     if (!is_logged_in()) {
         echo json_encode([
-            'success' => false, 
+            'success' => false,
             'message' => 'Please log in to add items to your cart.',
             'redirect' => 'login.php'
         ]);
         exit;
     }
-    
+
     if (is_admin()) {
         echo json_encode([
-            'success' => false, 
+            'success' => false,
             'message' => 'Administrators cannot make purchases.'
         ]);
         exit;
     }
-    
+
     $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
     $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
     $user_id = $_SESSION['user_id'];
-    
+
     // Check product exists and has stock
     $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
     $stmt->execute([$product_id]);
     $product = $stmt->fetch();
-    
+
     if (!$product) {
         echo json_encode(['success' => false, 'message' => 'Product not found.']);
         exit;
     }
-    
+
     if ($product['stock'] <= 0) {
         echo json_encode(['success' => false, 'message' => 'This product is out of stock.']);
         exit;
     }
-    
-    // Check current quantity in cart
-    $stmt = $pdo->prepare("SELECT quantity FROM cart WHERE user_id = ? AND product_id = ?");
-    $stmt->execute([$user_id, $product_id]);
-    $existing_qty = $stmt->fetchColumn();
-    
-    $new_qty = $existing_qty ? ($existing_qty + $quantity) : $quantity;
-    
-    // Cap at available stock
-    if ($new_qty > $product['stock']) {
-        $new_qty = $product['stock'];
-        $message = "Only {$product['stock']} units available. Cart quantity adjusted accordingly.";
-    } else {
-        $message = "Product added to cart!";
-    }
-    
-    // Save to database
-    if ($existing_qty) {
-        $stmt = $pdo->prepare("UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?");
-        $stmt->execute([$new_qty, $user_id, $product_id]);
-    } else {
-        $stmt = $pdo->prepare("INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)");
-        $stmt->execute([$user_id, $product_id, $new_qty]);
-    }
-    
+
+    // Quick-add from product cards never carries a customization note
+    $result = cart_upsert($pdo, $user_id, $product_id, $quantity, '', $product['stock']);
+    $message = $result['capped']
+        ? "Only {$product['stock']} units available. Cart quantity adjusted accordingly."
+        : "Product added to cart!";
+
     // Calculate total cart items count
     $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
     $stmt->execute([$user_id]);
     $total_items = intval($stmt->fetchColumn());
-    
+
     echo json_encode([
-        'success' => true, 
+        'success' => true,
         'message' => $message,
         'cart_count' => $total_items
     ]);
@@ -100,38 +104,26 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $_POST = sanitize_input($_POST);
     $action = $_POST['action'];
-    
+
     if ($action === 'add') {
         $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
         $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
-        
+        $customization = trim($_POST['customization'] ?? '');
+
         // Fetch product
         $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
         $stmt->execute([$product_id]);
         $product = $stmt->fetch();
-        
+
         if ($product && $product['stock'] > 0) {
-            $stmt = $pdo->prepare("SELECT quantity FROM cart WHERE user_id = ? AND product_id = ?");
-            $stmt->execute([$user_id, $product_id]);
-            $existing_qty = $stmt->fetchColumn();
-            
-            $new_qty = $existing_qty ? ($existing_qty + $quantity) : $quantity;
-            
-            if ($new_qty > $product['stock']) {
-                $new_qty = $product['stock'];
+            $result = cart_upsert($pdo, $user_id, $product_id, $quantity, $customization, $product['stock']);
+
+            if ($result['capped']) {
                 $_SESSION['flash_error'] = "You cannot add more than {$product['stock']} units of this item.";
             } else {
                 $_SESSION['flash_success'] = "Added to cart.";
             }
-            
-            if ($existing_qty) {
-                $stmt = $pdo->prepare("UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?");
-                $stmt->execute([$new_qty, $user_id, $product_id]);
-            } else {
-                $stmt = $pdo->prepare("INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)");
-                $stmt->execute([$user_id, $product_id, $new_qty]);
-            }
-            
+
             // Redirect to cart page to prevent form resubmission
             header("Location: cart.php");
             exit;
@@ -141,15 +133,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     } elseif ($action === 'update') {
         $cart_id = isset($_POST['cart_id']) ? intval($_POST['cart_id']) : 0;
         $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
-        
+
         // Retrieve product stock based on cart item
-        $stmt = $pdo->prepare("SELECT c.quantity as cart_qty, p.stock, p.name 
-                               FROM cart c 
-                               JOIN products p ON c.product_id = p.id 
+        $stmt = $pdo->prepare("SELECT c.quantity as cart_qty, p.stock, p.name
+                               FROM cart c
+                               JOIN products p ON c.product_id = p.id
                                WHERE c.id = ? AND c.user_id = ?");
         $stmt->execute([$cart_id, $user_id]);
         $cart_item = $stmt->fetch();
-        
+
         if ($cart_item) {
             if ($quantity <= 0) {
                 // Delete if quantity is set to 0 or less
@@ -180,11 +172,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Fetch all cart items for display
-$stmt = $pdo->prepare("SELECT c.id as cart_id, c.quantity, p.*, cat.name as category_name 
-                       FROM cart c 
-                       JOIN products p ON c.product_id = p.id 
-                       LEFT JOIN categories cat ON p.category_id = cat.id 
-                       WHERE c.user_id = ? 
+$stmt = $pdo->prepare("SELECT c.id as cart_id, c.quantity, c.customization, p.*, cat.name as category_name,
+                       (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image
+                       FROM cart c
+                       JOIN products p ON c.product_id = p.id
+                       LEFT JOIN categories cat ON p.category_id = cat.id
+                       WHERE c.user_id = ?
                        ORDER BY c.created_at ASC");
 $stmt->execute([$user_id]);
 $cart_items = $stmt->fetchAll();
@@ -226,18 +219,18 @@ unset($_SESSION['flash_error']);
                 </tr>
             </thead>
             <tbody>
-                <?php 
+                <?php
                 $grand_total = 0;
-                foreach ($cart_items as $item): 
+                foreach ($cart_items as $item):
                     $subtotal = $item['price'] * $item['quantity'];
                     $grand_total += $subtotal;
                 ?>
                     <tr>
                         <td>
                             <div style="display: flex; align-items: center; gap: 1rem;">
-                                <?php 
-                                $photo_path = 'uploads/products/' . $item['photo'];
-                                if (!empty($item['photo']) && file_exists(__DIR__ . '/' . $photo_path)): 
+                                <?php
+                                $photo_path = 'uploads/products/' . $item['primary_image'];
+                                if (!empty($item['primary_image']) && file_exists(__DIR__ . '/' . $photo_path)):
                                 ?>
                                     <img src="<?= htmlspecialchars($photo_path) ?>" class="img-thumbnail" alt="<?= htmlspecialchars($item['name']) ?>">
                                 <?php else: ?>
@@ -248,6 +241,9 @@ unset($_SESSION['flash_error']);
                                         <a href="product_detail.php?id=<?= $item['id'] ?>"><?= htmlspecialchars($item['name']) ?></a>
                                     </h4>
                                     <span style="font-size: 0.8rem; color: var(--text-muted);"><?= htmlspecialchars($item['category_name'] ?? 'Uncategorized') ?></span>
+                                    <?php if ($item['customization'] !== ''): ?>
+                                        <br><span style="font-size: 0.8rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
+                                    <?php endif; ?>
                                     <?php if ($item['stock'] <= 5): ?>
                                         <br><span style="font-size: 0.78rem; color: var(--warning); font-weight: 600;">Only <?= $item['stock'] ?> left in stock!</span>
                                     <?php endif; ?>
