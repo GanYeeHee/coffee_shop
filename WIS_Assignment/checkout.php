@@ -375,29 +375,29 @@ $address_options['new'] = '+ Enter a new address';
                     <li style="display: flex; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid var(--border-color);">
                         <div>
                             <strong><?= htmlspecialchars($item['name']) ?></strong><br>
-                            <span style="font-size: 0.85rem; color: var(--text-muted);">Qty: <?= $item['quantity'] ?> @ $<?= number_format($item['price'], 2) ?> each</span>
+                            <span style="font-size: 0.85rem; color: var(--text-muted);">Qty: <?= $item['quantity'] ?> @ RM<?= number_format($item['price'], 2) ?> each</span>
                             <?php if (!empty($item['customization'])): ?>
                                 <br><span style="font-size: 0.8rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
                             <?php endif; ?>
                         </div>
-                        <span style="font-weight: 500;">$<?= number_format($item['price'] * $item['quantity'], 2) ?></span>
+                        <span style="font-weight: 500;">RM<?= number_format($item['price'] * $item['quantity'], 2) ?></span>
                     </li>
                 <?php endforeach; ?>
             </ul>
 
             <div style="margin-top: 1.5rem; display: flex; justify-content: space-between;">
                 <span>Subtotal:</span>
-                <strong>$<?= number_format($grand_total, 2) ?></strong>
+                <strong>RM<?= number_format($grand_total, 2) ?></strong>
             </div>
 
             <div id="discount-line" style="display: <?= $discount_amount > 0 ? 'flex' : 'none' ?>; justify-content: space-between; color: var(--success); margin-top: 0.4rem;">
                 <span>Voucher Discount:</span>
-                <strong id="discount-amount">-$<?= number_format($discount_amount, 2) ?></strong>
+                <strong id="discount-amount">-RM<?= number_format($discount_amount, 2) ?></strong>
             </div>
 
             <div style="margin-top: 0.8rem; font-size: 1.3rem; display: flex; justify-content: space-between; font-weight: 700; color: var(--primary-dark);">
                 <span>Total:</span>
-                <span id="grand-total-amount">$<?= number_format($final_total, 2) ?></span>
+                <span id="grand-total-amount">RM<?= number_format($final_total, 2) ?></span>
             </div>
 
             <div style="margin-top: 1.5rem;">

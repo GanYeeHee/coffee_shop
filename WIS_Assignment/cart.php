@@ -250,7 +250,7 @@ unset($_SESSION['flash_error']);
                                 </div>
                             </div>
                         </td>
-                        <td>$<?= number_format($item['price'], 2) ?></td>
+                        <td>RM<?= number_format($item['price'], 2) ?></td>
                         <td>
                             <form action="cart.php" method="POST" style="display: flex; align-items: center; gap: 0.5rem;">
                                 <input type="hidden" name="action" value="update">
@@ -259,7 +259,7 @@ unset($_SESSION['flash_error']);
                                 <button type="submit" class="btn btn-secondary btn-sm" title="Update Quantity">Update</button>
                             </form>
                         </td>
-                        <td style="font-weight: 600; color: var(--primary-dark);">$<?= number_format($subtotal, 2) ?></td>
+                        <td style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($subtotal, 2) ?></td>
                         <td>
                             <form action="cart.php" method="POST">
                                 <input type="hidden" name="action" value="remove">
@@ -276,7 +276,7 @@ unset($_SESSION['flash_error']);
     <div class="cart-total-box">
         <div class="cart-total-line">
             <span>Subtotal:</span>
-            <strong>$<?= number_format($grand_total, 2) ?></strong>
+            <strong>RM<?= number_format($grand_total, 2) ?></strong>
         </div>
         <div class="cart-total-line">
             <span>Estimated Shipping:</span>
@@ -284,7 +284,7 @@ unset($_SESSION['flash_error']);
         </div>
         <div class="cart-total-line final">
             <span>Total:</span>
-            <span>$<?= number_format($grand_total, 2) ?></span>
+            <span>RM<?= number_format($grand_total, 2) ?></span>
         </div>
         <a href="checkout.php" class="btn btn-accent btn-block" style="text-align: center;">Proceed to Checkout &rarr;</a>
     </div>

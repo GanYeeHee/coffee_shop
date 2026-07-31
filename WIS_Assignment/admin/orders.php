@@ -167,7 +167,7 @@ unset($_SESSION['flash_error']);
                                 <td><strong>#<?= $ord['id'] ?></strong></td>
                                 <td><?= htmlspecialchars($ord['username'] ?? 'Guest/Deleted') ?></td>
                                 <td><?= date('d M Y, h:i A', strtotime($ord['order_date'])) ?></td>
-                                <td style="font-weight: 600; color: var(--primary-dark);">$<?= number_format($ord['total_price'], 2) ?></td>
+                                <td style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($ord['total_price'], 2) ?></td>
                                 <td>
                                     <span class="badge badge-<?= strtolower($ord['status']) ?>">
                                         <?= htmlspecialchars($ord['status']) ?>
@@ -226,7 +226,7 @@ unset($_SESSION['flash_error']);
                     <div><strong>Fulfillment:</strong> Pickup at Store</div>
                 <?php endif; ?>
                 <?php if ($expand_order['discount_amount'] > 0): ?>
-                    <div><strong>Voucher Discount:</strong> -$<?= number_format($expand_order['discount_amount'], 2) ?></div>
+                    <div><strong>Voucher Discount:</strong> -RM<?= number_format($expand_order['discount_amount'], 2) ?></div>
                 <?php endif; ?>
             </div>
             
@@ -249,12 +249,12 @@ unset($_SESSION['flash_error']);
                                 <?php endif; ?>
                             </td>
                             <td><?= $item['quantity'] ?></td>
-                            <td>$<?= number_format($item['checkout_price'] * $item['quantity'], 2) ?></td>
+                            <td>RM<?= number_format($item['checkout_price'] * $item['quantity'], 2) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <tr style="background-color: var(--bg-cream); font-weight: 700;">
                         <td colspan="2" style="text-align: right;">Total Amount:</td>
-                        <td style="color: var(--accent);">$<?= number_format($expand_order['total_price'], 2) ?></td>
+                        <td style="color: var(--accent);">RM<?= number_format($expand_order['total_price'], 2) ?></td>
                     </tr>
                 </tbody>
             </table>

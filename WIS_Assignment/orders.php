@@ -139,7 +139,7 @@ if ($expand_order_id > 0) {
                             <tr class="<?= ($expand_order_id === $ord['id']) ? 'active-row' : '' ?>" style="<?= ($expand_order_id === $ord['id']) ? 'background-color: #FAF6F0;' : '' ?>">
                                 <td><strong>#<?= $ord['id'] ?></strong></td>
                                 <td><?= date('d M Y, h:i A', strtotime($ord['order_date'])) ?></td>
-                                <td style="font-weight: 600; color: var(--primary-dark);">$<?= number_format($ord['total_price'], 2) ?></td>
+                                <td style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($ord['total_price'], 2) ?></td>
                                 <td>
                                     <span class="badge badge-<?= strtolower($ord['status']) ?>">
                                         <?= htmlspecialchars($ord['status']) ?>
@@ -184,7 +184,7 @@ if ($expand_order_id > 0) {
                         <div><strong>Fulfillment:</strong> Pickup at Store</div>
                     <?php endif; ?>
                     <?php if ($expand_order['discount_amount'] > 0): ?>
-                        <div><strong>Voucher Discount:</strong> -$<?= number_format($expand_order['discount_amount'], 2) ?></div>
+                        <div><strong>Voucher Discount:</strong> -RM<?= number_format($expand_order['discount_amount'], 2) ?></div>
                     <?php endif; ?>
                 </div>
                 
@@ -208,13 +208,13 @@ if ($expand_order_id > 0) {
                                     <?php endif; ?>
                                 </td>
                                 <td><?= $item['quantity'] ?></td>
-                                <td>$<?= number_format($item['checkout_price'], 2) ?></td>
-                                <td>$<?= number_format($item['checkout_price'] * $item['quantity'], 2) ?></td>
+                                <td>RM<?= number_format($item['checkout_price'], 2) ?></td>
+                                <td>RM<?= number_format($item['checkout_price'] * $item['quantity'], 2) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         <tr style="background-color: var(--bg-cream); font-weight: 700; font-size: 1rem;">
                             <td colspan="3" style="text-align: right; border-top: 2px solid var(--border-color);">Total:</td>
-                            <td style="border-top: 2px solid var(--border-color); color: var(--accent);">$<?= number_format($expand_order['total_price'], 2) ?></td>
+                            <td style="border-top: 2px solid var(--border-color); color: var(--accent);">RM<?= number_format($expand_order['total_price'], 2) ?></td>
                         </tr>
                     </tbody>
                 </table>

@@ -123,7 +123,7 @@ unset($_SESSION['flash_success']);
     <div class="detail-info">
         <span class="product-cat"><?= htmlspecialchars($product['category_name'] ?? 'Uncategorized') ?></span>
         <h1><?= htmlspecialchars($product['name']) ?></h1>
-        <div class="detail-price">$<?= number_format($product['price'], 2) ?></div>
+        <div class="detail-price">RM<?= number_format($product['price'], 2) ?></div>
 
         <?php if ($rating_summary['review_count'] > 0): ?>
             <div style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.95rem;">

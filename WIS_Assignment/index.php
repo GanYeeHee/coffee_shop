@@ -136,7 +136,7 @@ $products = $prod_stmt->fetchAll();
                             <p class="product-desc"><?= htmlspecialchars($product['description']) ?></p>
                             
                             <div class="product-price-action">
-                                <span class="product-price">$<?= number_format($product['price'], 2) ?></span>
+                                <span class="product-price">RM<?= number_format($product['price'], 2) ?></span>
                                 
                                 <?php if (is_admin()): ?>
                                     <a href="admin/products.php?action=edit&id=<?= $product['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
