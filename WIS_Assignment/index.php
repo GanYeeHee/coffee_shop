@@ -10,9 +10,12 @@ $cat_id = isset($_GET['cat_id']) ? intval($_GET['cat_id']) : 0;
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 
 // Build the product query
-$sql = "SELECT p.*, c.name as category_name 
-        FROM products p 
-        LEFT JOIN categories c ON p.category_id = c.id 
+$sql = "SELECT p.*, c.name as category_name,
+        (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image,
+        (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) as avg_rating,
+        (SELECT COUNT(*) FROM reviews WHERE product_id = p.id) as review_count
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
         WHERE 1=1";
 $params = [];
 
@@ -101,9 +104,9 @@ $products = $prod_stmt->fetchAll();
                 <?php foreach ($products as $product): ?>
                     <article class="product-card">
                         <div class="product-img-wrapper">
-                            <?php 
-                            $photo_path = 'uploads/products/' . $product['photo'];
-                            if (!empty($product['photo']) && file_exists(__DIR__ . '/' . $photo_path)): 
+                            <?php
+                            $photo_path = 'uploads/products/' . $product['primary_image'];
+                            if (!empty($product['primary_image']) && file_exists(__DIR__ . '/' . $photo_path)):
                             ?>
                                 <img src="<?= htmlspecialchars($photo_path) ?>" class="product-img" alt="<?= htmlspecialchars($product['name']) ?>">
                             <?php else: ?>
@@ -127,10 +130,13 @@ $products = $prod_stmt->fetchAll();
                                     <?= htmlspecialchars($product['name']) ?>
                                 </a>
                             </h3>
+                            <?php if ($product['review_count'] > 0): ?>
+                                <span style="font-size: 0.85rem; color: var(--text-muted);">★ <?= number_format($product['avg_rating'], 1) ?> (<?= $product['review_count'] ?>)</span>
+                            <?php endif; ?>
                             <p class="product-desc"><?= htmlspecialchars($product['description']) ?></p>
                             
                             <div class="product-price-action">
-                                <span class="product-price">$<?= number_format($product['price'], 2) ?></span>
+                                <span class="product-price">RM<?= number_format($product['price'], 2) ?></span>
                                 
                                 <?php if (is_admin()): ?>
                                     <a href="admin/products.php?action=edit&id=<?= $product['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>

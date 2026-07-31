@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors['username'] = "Username is required.";
         } else {
             // Find user security question
-            $stmt = $pdo->prepare("SELECT security_question FROM users WHERE username = ?");
+            $stmt = $pdo->prepare("SELECT usa.security_question FROM users u JOIN user_security_answers usa ON usa.user_id = u.id WHERE u.username = ? LIMIT 1");
             $stmt->execute([$username]);
             $question = $stmt->fetchColumn();
             
@@ -40,15 +40,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_password = $_POST['new_password'] ?? '';
         $confirm_password = $_POST['confirm_password'] ?? '';
         
-        // Fetch security answer from database
-        $stmt = $pdo->prepare("SELECT security_question, security_answer FROM users WHERE username = ?");
+        // Fetch security answer hash from database
+        $stmt = $pdo->prepare("SELECT u.id as user_id, usa.security_question, usa.answer_hash FROM users u JOIN user_security_answers usa ON usa.user_id = u.id WHERE u.username = ? LIMIT 1");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
-        
+
         if ($user) {
             $question = $user['security_question'];
             $step = 2; // Retain state in case of validation error
-            
+
             // Validate answers and password matching
             $req_fields = [
                 'security_answer' => 'Security Answer',
@@ -56,9 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'confirm_password' => 'Confirm Password'
             ];
             $errors = validate_required($_POST, $req_fields);
-            
+
             if (empty($errors['security_answer'])) {
-                if (strtolower($answer) !== strtolower($user['security_answer'])) {
+                if (!password_verify(strtolower(trim($answer)), $user['answer_hash'])) {
                     $errors['security_answer'] = "Incorrect answer to security question.";
                 }
             }

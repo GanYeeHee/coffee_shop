@@ -112,26 +112,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             // Hash password
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            
-            // Insert user
-            $insert_stmt = $pdo->prepare("INSERT INTO users (username, password, email, full_name, phone, role, photo, status, security_question, security_answer) VALUES (?, ?, ?, ?, ?, 'member', ?, 'active', ?, ?)");
-            
+
             try {
+                $pdo->beginTransaction();
+
+                // Insert user
+                $insert_stmt = $pdo->prepare("INSERT INTO users (username, password, email, full_name, phone, role, photo, status) VALUES (?, ?, ?, ?, ?, 'member', ?, 'active')");
                 $insert_stmt->execute([
                     $username,
                     $hashed_password,
                     $email,
                     $full_name,
                     $phone !== '' ? $phone : null,
-                    $photo_name,
-                    $security_question,
-                    strtolower(trim($security_answer)) // Store in lowercase for case-insensitive validation
+                    $photo_name
                 ]);
-                
+                $user_id = $pdo->lastInsertId();
+
+                // Store security answer hashed, lowercase-normalized so verification stays case-insensitive
+                $answer_hash = password_hash(strtolower(trim($security_answer)), PASSWORD_DEFAULT);
+                $pdo->prepare("INSERT INTO user_security_answers (user_id, security_question, answer_hash) VALUES (?, ?, ?)")
+                    ->execute([$user_id, $security_question, $answer_hash]);
+
+                $pdo->commit();
+
                 $_SESSION['flash_success'] = "Registration successful! You can now log in.";
                 header("Location: login.php");
                 exit;
             } catch (PDOException $e) {
+                $pdo->rollBack();
                 $errors['general'] = "Registration failed. Database error: " . $e->getMessage();
             }
         }

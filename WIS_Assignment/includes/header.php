@@ -54,6 +54,7 @@ if (is_logged_in() && is_member() && isset($pdo)) {
                     <li class="nav-item"><a href="<?= $base_path ?>admin/index.php">Dashboard</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/categories.php">Categories</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/products.php">Products</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/vouchers.php">Vouchers</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/members.php">Members</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/orders.php">Orders</a></li>
                 <?php elseif (is_member()): ?>
