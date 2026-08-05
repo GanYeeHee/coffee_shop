@@ -4,6 +4,7 @@ CREATE DATABASE IF NOT EXISTS `coffee_shop`;
 USE `coffee_shop`;
 
 -- Drop tables if they exist to allow clean resets
+DROP TABLE IF EXISTS `password_reset_tokens`;
 DROP TABLE IF EXISTS `order_items`;
 DROP TABLE IF EXISTS `orders`;
 DROP TABLE IF EXISTS `cart`;
@@ -25,6 +26,14 @@ CREATE TABLE `users` (
   `security_question` VARCHAR(255) NOT NULL,
   `security_answer` VARCHAR(255) NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 1b. Password Reset Tokens Table (email-based reset)
+CREATE TABLE `password_reset_tokens` (
+  `token` VARCHAR(64) PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Categories Table

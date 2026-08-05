@@ -13,8 +13,9 @@ DROP TABLE IF EXISTS `orders`;
 DROP TABLE IF EXISTS `reviews`;               
 DROP TABLE IF EXISTS `cart`;                  
 DROP TABLE IF EXISTS `product_images`;         
-DROP TABLE IF EXISTS `user_security_answers`; 
-DROP TABLE IF EXISTS `user_addresses`;        
+DROP TABLE IF EXISTS `password_reset_tokens`;
+DROP TABLE IF EXISTS `user_security_answers`;
+DROP TABLE IF EXISTS `user_addresses`;
 DROP TABLE IF EXISTS `user_details`;          -- Leftover table cleanup
 
 DROP TABLE IF EXISTS `products`;              
@@ -70,6 +71,13 @@ CREATE TABLE `user_security_answers` (
   `answer_hash` VARCHAR(255) NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   UNIQUE KEY `user_question` (`user_id`, `security_question`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `password_reset_tokens` (
+  `token` VARCHAR(64) PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. Discount Vouchers Table
