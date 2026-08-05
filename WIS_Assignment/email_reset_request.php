@@ -37,10 +37,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$user['id']]);
 
             $token = bin2hex(random_bytes(32));
-            $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
 
-            $stmt = $pdo->prepare("INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)");
-            $stmt->execute([$token, $user['id'], $expires_at]);
+            // Compute the expiry with MySQL's own clock (NOW()) rather than PHP's, so a
+            // PHP/MySQL timezone mismatch can never make a fresh token look already-expired.
+            $stmt = $pdo->prepare("INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, NOW() + INTERVAL 15 MINUTE)");
+            $stmt->execute([$token, $user['id']]);
 
             $link = base_url('email_reset_password.php?token=' . $token);
 
