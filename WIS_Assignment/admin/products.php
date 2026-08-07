@@ -264,25 +264,47 @@ if ($action === 'edit' && $id > 0 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     }
 }
 
-// Fetch all products (for List Table) with keyword search
+// Fetch all products (for List Table) with keyword search + filters
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
+$filter_category = isset($_GET['category']) ? intval($_GET['category']) : 0;
+$filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
+
 $sql = "SELECT p.*, c.name as category_name,
         (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id";
+$where = [];
 $params = [];
 
 if ($search !== '') {
-    $sql .= " WHERE p.name LIKE ? OR p.description LIKE ? OR c.name LIKE ?";
+    $where[] = "(p.name LIKE ? OR p.description LIKE ? OR c.name LIKE ?)";
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
+}
+
+if ($filter_category > 0) {
+    $where[] = "p.category_id = ?";
+    $params[] = $filter_category;
+}
+
+if ($filter_status === 'in_stock') {
+    $where[] = "p.stock > 5";
+} elseif ($filter_status === 'low_stock') {
+    $where[] = "p.stock > 0 AND p.stock <= 5";
+} elseif ($filter_status === 'sold_out') {
+    $where[] = "p.stock = 0";
+}
+
+if (!empty($where)) {
+    $sql .= " WHERE " . implode(" AND ", $where);
 }
 
 $sql .= " ORDER BY p.id DESC";
 $prod_stmt = $pdo->prepare($sql);
 $prod_stmt->execute($params);
 $all_products = $prod_stmt->fetchAll();
+$has_active_filters = ($search !== '' || $filter_category > 0 || $filter_status !== '');
 
 // Flash Messages
 $flash_success = $_SESSION['flash_success'] ?? null;
@@ -318,9 +340,27 @@ unset($_SESSION['flash_error']);
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
             <h3>Product Inventory</h3>
 
-            <form action="products.php" method="GET" style="display: flex; gap: 0.5rem; width: 350px;">
-                <input type="text" name="q" class="form-control" placeholder="Search products..." value="<?= htmlspecialchars($search) ?>" style="padding: 0.5rem;">
-                <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+            <form action="products.php" method="GET" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                <input type="text" name="q" class="form-control" placeholder="Search products..." value="<?= htmlspecialchars($search) ?>" style="padding: 0.5rem; width: 200px;">
+
+                <select name="category" class="form-control" style="padding: 0.5rem;">
+                    <option value="0">All Categories</option>
+                    <?php foreach ($categories as $cat): ?>
+                        <option value="<?= $cat['id'] ?>" <?= $filter_category == $cat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+
+                <select name="status" class="form-control" style="padding: 0.5rem;">
+                    <option value="">All Status</option>
+                    <option value="in_stock" <?= $filter_status === 'in_stock' ? 'selected' : '' ?>>In Stock</option>
+                    <option value="low_stock" <?= $filter_status === 'low_stock' ? 'selected' : '' ?>>Low Stock</option>
+                    <option value="sold_out" <?= $filter_status === 'sold_out' ? 'selected' : '' ?>>Sold Out</option>
+                </select>
+
+                <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+                <?php if ($has_active_filters): ?>
+                    <a href="products.php" class="btn btn-sm" style="color: var(--text-muted); text-decoration: underline;">Clear</a>
+                <?php endif; ?>
             </form>
         </div>
 
@@ -368,6 +408,7 @@ unset($_SESSION['flash_error']);
                                 </td>
                                 <td>
                                     <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Edit</a>
+                                    <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Options</a>
                                     <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete product '<?= htmlspecialchars($p['name']) ?>'? This will permanently delete the item and all its image files from storage.">Delete</a>
                                 </td>
                             </tr>

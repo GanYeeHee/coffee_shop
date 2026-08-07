@@ -94,7 +94,7 @@ if ($expand_order_id > 0) {
     $expand_order = $stmt->fetch();
     
     if ($expand_order) {
-        $stmt = $pdo->prepare("SELECT oi.quantity, oi.price as checkout_price, oi.customization, p.name, p.id as product_id, cat.name as category_name,
+        $stmt = $pdo->prepare("SELECT oi.quantity, oi.price as checkout_price, oi.customization, oi.options_summary, p.name, p.id as product_id, cat.name as category_name,
                                (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image
                                FROM order_items oi
                                LEFT JOIN products p ON oi.product_id = p.id
@@ -244,6 +244,9 @@ unset($_SESSION['flash_error']);
                             <td>
                                 <strong><?= htmlspecialchars($item['name'] ?? 'Removed Product') ?></strong><br>
                                 <span style="font-size: 0.75rem; color: var(--text-muted);"><?= htmlspecialchars($item['category_name'] ?? '') ?></span>
+                                <?php if (!empty($item['options_summary'])): ?>
+                                    <br><span style="font-size: 0.75rem; color: var(--text-muted);"><?= htmlspecialchars($item['options_summary']) ?></span>
+                                <?php endif; ?>
                                 <?php if (!empty($item['customization'])): ?>
                                     <br><span style="font-size: 0.75rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
                                 <?php endif; ?>

@@ -58,7 +58,9 @@ if (is_admin()) {
 $user_id = $_SESSION['user_id'];
 
 // Get user cart items
-$stmt = $pdo->prepare("SELECT c.quantity, c.customization, p.* FROM cart c JOIN products p ON c.product_id = p.id WHERE c.user_id = ?");
+$stmt = $pdo->prepare("SELECT c.quantity, c.customization, c.options_summary, c.options_price_delta, p.*,
+                       (p.price + c.options_price_delta) as unit_price
+                       FROM cart c JOIN products p ON c.product_id = p.id WHERE c.user_id = ?");
 $stmt->execute([$user_id]);
 $cart_items = $stmt->fetchAll();
 
@@ -70,7 +72,7 @@ if (empty($cart_items)) {
 // Calculate total
 $grand_total = 0;
 foreach ($cart_items as $item) {
-    $grand_total += $item['price'] * $item['quantity'];
+    $grand_total += $item['unit_price'] * $item['quantity'];
 }
 
 // Saved addresses for the delivery-address picker
@@ -224,16 +226,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $order_id = $pdo->lastInsertId();
 
             // 2. Insert order items & Decrement stock levels
-            $item_stmt = $pdo->prepare("INSERT INTO order_items (order_id, product_id, price, quantity, customization) VALUES (?, ?, ?, ?, ?)");
+            $item_stmt = $pdo->prepare("INSERT INTO order_items (order_id, product_id, price, quantity, customization, options_summary) VALUES (?, ?, ?, ?, ?, ?)");
             $stock_stmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ?");
 
             foreach ($cart_items as $item) {
                 $item_stmt->execute([
                     $order_id,
                     $item['id'],
-                    $item['price'],
+                    $item['unit_price'],
                     $item['quantity'],
-                    $item['customization']
+                    $item['customization'],
+                    $item['options_summary']
                 ]);
 
                 $stock_stmt->execute([
@@ -375,12 +378,15 @@ $address_options['new'] = '+ Enter a new address';
                     <li style="display: flex; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid var(--border-color);">
                         <div>
                             <strong><?= htmlspecialchars($item['name']) ?></strong><br>
-                            <span style="font-size: 0.85rem; color: var(--text-muted);">Qty: <?= $item['quantity'] ?> @ RM<?= number_format($item['price'], 2) ?> each</span>
+                            <span style="font-size: 0.85rem; color: var(--text-muted);">Qty: <?= $item['quantity'] ?> @ RM<?= number_format($item['unit_price'], 2) ?> each</span>
+                            <?php if (!empty($item['options_summary'])): ?>
+                                <br><span style="font-size: 0.8rem; color: var(--text-muted);"><?= htmlspecialchars($item['options_summary']) ?></span>
+                            <?php endif; ?>
                             <?php if (!empty($item['customization'])): ?>
                                 <br><span style="font-size: 0.8rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
                             <?php endif; ?>
                         </div>
-                        <span style="font-weight: 500;">RM<?= number_format($item['price'] * $item['quantity'], 2) ?></span>
+                        <span style="font-weight: 500;">RM<?= number_format($item['unit_price'] * $item['quantity'], 2) ?></span>
                     </li>
                 <?php endforeach; ?>
             </ul>

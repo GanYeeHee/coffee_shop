@@ -21,6 +21,17 @@ if ($id > 0) {
         $gallery_stmt = $pdo->prepare("SELECT id, image_path, is_primary FROM product_images WHERE product_id = ? ORDER BY is_primary DESC, id ASC");
         $gallery_stmt->execute([$id]);
         $gallery_images = $gallery_stmt->fetchAll();
+
+        $option_groups_stmt = $pdo->prepare("SELECT id, name, is_required FROM product_option_groups WHERE product_id = ? ORDER BY id ASC");
+        $option_groups_stmt->execute([$id]);
+        $option_groups = $option_groups_stmt->fetchAll();
+
+        $option_values_stmt = $pdo->prepare("SELECT id, group_id, label, price_delta FROM product_option_values WHERE group_id = ? ORDER BY id ASC");
+        foreach ($option_groups as &$group) {
+            $option_values_stmt->execute([$group['id']]);
+            $group['values'] = $option_values_stmt->fetchAll();
+        }
+        unset($group);
     }
 }
 
@@ -83,6 +94,9 @@ if (is_member()) {
 
 $flash_success = $_SESSION['flash_success'] ?? null;
 unset($_SESSION['flash_success']);
+
+$flash_error = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_error']);
 ?>
 
 <div style="margin-bottom: 2rem;">
@@ -91,6 +105,10 @@ unset($_SESSION['flash_success']);
 
 <?php if ($flash_success): ?>
     <div class="alert alert-success"><?= htmlspecialchars($flash_success) ?></div>
+<?php endif; ?>
+
+<?php if ($flash_error): ?>
+    <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
 <?php endif; ?>
 
 <div class="detail-layout">
@@ -151,6 +169,19 @@ unset($_SESSION['flash_success']);
                 <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
                 
                 <?php if ($product['stock'] > 0): ?>
+                    <?php foreach ($option_groups as $group): ?>
+                        <?php
+                        $value_options = $group['is_required'] ? ['' => '-- Select --'] : ['' => 'None'];
+                        foreach ($group['values'] as $value) {
+                            $option_label = $value['price_delta'] > 0
+                                ? $value['label'] . ' (+RM' . number_format($value['price_delta'], 2) . ')'
+                                : $value['label'];
+                            $value_options[$value['id']] = $option_label;
+                        }
+                        ?>
+                        <?= html_select("options[{$group['id']}]", $value_options, '', $group['name'] . ($group['is_required'] ? ' *' : ''), [], $group['is_required'] ? ['required' => 'required'] : []) ?>
+                    <?php endforeach; ?>
+
                     <div class="form-group">
                         <label for="field-customization">Customization (Optional)</label>
                         <input type="text" name="customization" id="field-customization" class="form-control" placeholder="e.g. Oat milk, Extra shot, Less ice">

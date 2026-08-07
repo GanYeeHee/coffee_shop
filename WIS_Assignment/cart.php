@@ -5,12 +5,12 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
 
 /**
- * Add or merge a quantity into the cart, keyed on (user_id, product_id, customization)
+ * Add or merge a quantity into the cart, keyed on (user_id, product_id, customization, option_signature)
  * to match the cart table's unique key. Caps the resulting quantity at available stock.
  */
-function cart_upsert(PDO $pdo, $user_id, $product_id, $add_qty, $customization, $stock) {
-    $stmt = $pdo->prepare("SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ? AND customization = ?");
-    $stmt->execute([$user_id, $product_id, $customization]);
+function cart_upsert(PDO $pdo, $user_id, $product_id, $add_qty, $customization, $stock, $option_signature = '', $options_summary = '', $options_price_delta = 0.00) {
+    $stmt = $pdo->prepare("SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ? AND customization = ? AND option_signature = ?");
+    $stmt->execute([$user_id, $product_id, $customization, $option_signature]);
     $existing = $stmt->fetch();
 
     $requested_qty = ($existing ? $existing['quantity'] : 0) + $add_qty;
@@ -19,11 +19,59 @@ function cart_upsert(PDO $pdo, $user_id, $product_id, $add_qty, $customization, 
     if ($existing) {
         $pdo->prepare("UPDATE cart SET quantity = ? WHERE id = ?")->execute([$new_qty, $existing['id']]);
     } else {
-        $pdo->prepare("INSERT INTO cart (user_id, product_id, quantity, customization) VALUES (?, ?, ?, ?)")
-            ->execute([$user_id, $product_id, $new_qty, $customization]);
+        $pdo->prepare("INSERT INTO cart (user_id, product_id, quantity, customization, option_signature, options_summary, options_price_delta) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            ->execute([$user_id, $product_id, $new_qty, $customization, $option_signature, $options_summary, $options_price_delta]);
     }
 
     return ['new_qty' => $new_qty, 'capped' => $new_qty < $requested_qty];
+}
+
+/**
+ * Validate the customer's selected option values against a product's admin-defined
+ * option groups. Returns null and a normalized selection on success, or an error message.
+ */
+function resolve_selected_options(PDO $pdo, $product_id, $selected) {
+    $groups_stmt = $pdo->prepare("SELECT id, name, is_required FROM product_option_groups WHERE product_id = ? ORDER BY id ASC");
+    $groups_stmt->execute([$product_id]);
+    $groups = $groups_stmt->fetchAll();
+
+    $summary_parts = [];
+    $signature_ids = [];
+    $price_delta = 0.00;
+
+    foreach ($groups as $group) {
+        $value_id = isset($selected[$group['id']]) ? intval($selected[$group['id']]) : 0;
+
+        if ($value_id <= 0) {
+            if ($group['is_required']) {
+                return ['error' => "Please select an option for \"{$group['name']}\"."];
+            }
+            continue;
+        }
+
+        $value_stmt = $pdo->prepare("SELECT id, label, price_delta FROM product_option_values WHERE id = ? AND group_id = ?");
+        $value_stmt->execute([$value_id, $group['id']]);
+        $value = $value_stmt->fetch();
+
+        if (!$value) {
+            return ['error' => "Invalid selection for \"{$group['name']}\"."];
+        }
+
+        $summary_parts[] = $value['price_delta'] > 0
+            ? "{$group['name']}: {$value['label']} (+RM" . number_format($value['price_delta'], 2) . ")"
+            : "{$group['name']}: {$value['label']}";
+        $signature_ids[] = $value['id'];
+        $price_delta += $value['price_delta'];
+    }
+
+    sort($signature_ids);
+
+    return [
+        'error' => null,
+        'option_signature' => implode(',', $signature_ids),
+        'options_summary' => implode('; ', $summary_parts),
+        'options_price_delta' => $price_delta
+    ];
 }
 
 // Handle AJAX cart addition separately to avoid rendering layouts
@@ -109,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
         $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
         $customization = trim($_POST['customization'] ?? '');
+        $selected_options = $_POST['options'] ?? [];
 
         // Fetch product
         $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
@@ -116,7 +165,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $product = $stmt->fetch();
 
         if ($product && $product['stock'] > 0) {
-            $result = cart_upsert($pdo, $user_id, $product_id, $quantity, $customization, $product['stock']);
+            $resolved = resolve_selected_options($pdo, $product_id, $selected_options);
+
+            if ($resolved['error']) {
+                $_SESSION['flash_error'] = $resolved['error'];
+                header("Location: product_detail.php?id=" . $product_id);
+                exit;
+            }
+
+            $result = cart_upsert(
+                $pdo, $user_id, $product_id, $quantity, $customization, $product['stock'],
+                $resolved['option_signature'], $resolved['options_summary'], $resolved['options_price_delta']
+            );
 
             if ($result['capped']) {
                 $_SESSION['flash_error'] = "You cannot add more than {$product['stock']} units of this item.";
@@ -172,7 +232,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Fetch all cart items for display
-$stmt = $pdo->prepare("SELECT c.id as cart_id, c.quantity, c.customization, p.*, cat.name as category_name,
+$stmt = $pdo->prepare("SELECT c.id as cart_id, c.quantity, c.customization, c.options_summary, c.options_price_delta, p.*, cat.name as category_name,
+                       (p.price + c.options_price_delta) as unit_price,
                        (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image
                        FROM cart c
                        JOIN products p ON c.product_id = p.id
@@ -222,7 +283,7 @@ unset($_SESSION['flash_error']);
                 <?php
                 $grand_total = 0;
                 foreach ($cart_items as $item):
-                    $subtotal = $item['price'] * $item['quantity'];
+                    $subtotal = $item['unit_price'] * $item['quantity'];
                     $grand_total += $subtotal;
                 ?>
                     <tr>
@@ -241,6 +302,9 @@ unset($_SESSION['flash_error']);
                                         <a href="product_detail.php?id=<?= $item['id'] ?>"><?= htmlspecialchars($item['name']) ?></a>
                                     </h4>
                                     <span style="font-size: 0.8rem; color: var(--text-muted);"><?= htmlspecialchars($item['category_name'] ?? 'Uncategorized') ?></span>
+                                    <?php if ($item['options_summary'] !== ''): ?>
+                                        <br><span style="font-size: 0.8rem; color: var(--text-muted);"><?= htmlspecialchars($item['options_summary']) ?></span>
+                                    <?php endif; ?>
                                     <?php if ($item['customization'] !== ''): ?>
                                         <br><span style="font-size: 0.8rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
                                     <?php endif; ?>
@@ -250,7 +314,7 @@ unset($_SESSION['flash_error']);
                                 </div>
                             </div>
                         </td>
-                        <td>RM<?= number_format($item['price'], 2) ?></td>
+                        <td>RM<?= number_format($item['unit_price'], 2) ?></td>
                         <td>
                             <form action="cart.php" method="POST" style="display: flex; align-items: center; gap: 0.5rem;">
                                 <input type="hidden" name="action" value="update">
