@@ -7,14 +7,19 @@ USE `coffee_shop`;
 -- --------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
 
-DROP TABLE IF EXISTS `payments`;              
-DROP TABLE IF EXISTS `order_items`;           
-DROP TABLE IF EXISTS `orders`;                
-DROP TABLE IF EXISTS `reviews`;               
-DROP TABLE IF EXISTS `cart`;                  
-DROP TABLE IF EXISTS `product_images`;         
-DROP TABLE IF EXISTS `user_security_answers`; 
-DROP TABLE IF EXISTS `user_addresses`;        
+DROP TABLE IF EXISTS `payments`;
+DROP TABLE IF EXISTS `order_items`;
+DROP TABLE IF EXISTS `orders`;
+DROP TABLE IF EXISTS `reviews`;
+DROP TABLE IF EXISTS `cart`;
+DROP TABLE IF EXISTS `product_option_values`;
+DROP TABLE IF EXISTS `product_option_groups`;
+DROP TABLE IF EXISTS `option_template_values`;
+DROP TABLE IF EXISTS `option_templates`;
+DROP TABLE IF EXISTS `product_images`;
+DROP TABLE IF EXISTS `password_reset_tokens`;
+DROP TABLE IF EXISTS `user_security_answers`;
+DROP TABLE IF EXISTS `user_addresses`;
 DROP TABLE IF EXISTS `user_details`;          -- Leftover table cleanup
 
 DROP TABLE IF EXISTS `products`;              
@@ -72,6 +77,13 @@ CREATE TABLE `user_security_answers` (
   UNIQUE KEY `user_question` (`user_id`, `security_question`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `password_reset_tokens` (
+  `token` VARCHAR(64) PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 4. Discount Vouchers Table
 CREATE TABLE `vouchers` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -112,7 +124,46 @@ CREATE TABLE `product_images` (
   FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 8. Cart Table (Supports multiple unique customizations per product)
+-- 8. Option Templates (global reusable library, e.g. "Temperature", "Size", "Sugar Level", "Color" -
+-- defined once with correct spelling/values, then opted into per product via checkboxes in admin)
+CREATE TABLE `option_templates` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(50) NOT NULL UNIQUE,
+  `is_required` TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9. Option Template Values (the choices within a reusable template)
+CREATE TABLE `option_template_values` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `template_id` INT NOT NULL,
+  `label` VARCHAR(50) NOT NULL,
+  `price_delta` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  FOREIGN KEY (`template_id`) REFERENCES `option_templates` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10. Product Option Groups (admin-defined per product, e.g. "Temperature", "Size", "Sugar Level".
+-- Copied in from an option_template when admin checks that template's box for this product,
+-- or created manually for a one-off group; template_id is NULL for manual groups)
+CREATE TABLE `product_option_groups` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `product_id` INT NOT NULL,
+  `template_id` INT DEFAULT NULL,
+  `name` VARCHAR(50) NOT NULL,
+  `is_required` TINYINT(1) NOT NULL DEFAULT 1,
+  FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`template_id`) REFERENCES `option_templates` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 11. Product Option Values (selectable choices within a group, with optional price delta)
+CREATE TABLE `product_option_values` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `group_id` INT NOT NULL,
+  `label` VARCHAR(50) NOT NULL,
+  `price_delta` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  FOREIGN KEY (`group_id`) REFERENCES `product_option_groups` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 12. Cart Table (Supports multiple unique customizations/option selections per product)
 -- PHP BACKEND IMPLEMENTATION TIP:
 -- Always pass an empty string ('') instead of NULL when a product has no customization:
 -- Example: $customization = $_POST['customization'] ?? '';
@@ -121,14 +172,17 @@ CREATE TABLE `cart` (
   `user_id` INT NOT NULL,
   `product_id` INT NOT NULL,
   `quantity` INT NOT NULL DEFAULT 1,
-  `customization` VARCHAR(255) NOT NULL DEFAULT '', 
+  `customization` VARCHAR(255) NOT NULL DEFAULT '',
+  `option_signature` VARCHAR(255) NOT NULL DEFAULT '',
+  `options_summary` VARCHAR(500) NOT NULL DEFAULT '',
+  `options_price_delta` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
-  UNIQUE KEY `user_product_custom` (`user_id`, `product_id`, `customization`)
+  UNIQUE KEY `user_product_custom` (`user_id`, `product_id`, `customization`, `option_signature`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 9. Product Ratings & Reviews Table
+-- 13. Product Ratings & Reviews Table
 CREATE TABLE `reviews` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
@@ -140,7 +194,7 @@ CREATE TABLE `reviews` (
   FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 10. Orders Table
+-- 14. Orders Table
 CREATE TABLE `orders` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT DEFAULT NULL,
@@ -160,7 +214,7 @@ CREATE TABLE `orders` (
   INDEX `idx_orders_date` (`order_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 11. Order Items Table
+-- 15. Order Items Table
 CREATE TABLE `order_items` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `order_id` INT NOT NULL,
@@ -168,11 +222,12 @@ CREATE TABLE `order_items` (
   `price` DECIMAL(10, 2) NOT NULL,
   `quantity` INT NOT NULL,
   `customization` VARCHAR(255) DEFAULT NULL,
+  `options_summary` VARCHAR(500) DEFAULT NULL,
   FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 12. Payments Table
+-- 16. Payments Table
 CREATE TABLE `payments` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `order_id` INT NOT NULL,
@@ -238,6 +293,40 @@ INSERT INTO `product_images` (`product_id`, `image_path`, `is_primary`) VALUES
 (6, 'chocolate_cookie.jpg', 1),
 (7, 'signature_beans.jpg', 1),
 (8, 'stainless_tumbler.jpg', 1);
+
+-- Option Templates: the reusable library admin can opt individual products into via checkboxes,
+-- instead of retyping (and mistyping) the same option sets on every product.
+INSERT INTO `option_templates` (`id`, `name`, `is_required`) VALUES
+(1, 'Temperature', 1),
+(2, 'Size', 1),
+(3, 'Color', 0),
+(4, 'Sugar Level', 0);
+
+INSERT INTO `option_template_values` (`template_id`, `label`, `price_delta`) VALUES
+(1, 'Hot', 0.00),
+(1, 'Iced', 0.00),
+(2, '12oz', 0.00),
+(2, '16oz', 2.00),
+(3, 'Matte Black', 0.00),
+(3, 'White', 0.00),
+(4, 'Less Sugar', 0.00),
+(4, 'Normal Sugar', 0.00);
+
+-- Product Option Groups & Values (demonstrates per-product flexibility: drinks get
+-- required Temperature/Size choices copied from the templates above, merchandise like the tumbler
+-- gets an optional Color choice, and everything else has no options at all)
+INSERT INTO `product_option_groups` (`id`, `product_id`, `template_id`, `name`, `is_required`) VALUES
+(1, 1, 1, 'Temperature', 1),
+(2, 1, 2, 'Size', 1),
+(3, 8, 3, 'Color', 0);
+
+INSERT INTO `product_option_values` (`group_id`, `label`, `price_delta`) VALUES
+(1, 'Hot', 0.00),
+(1, 'Iced', 0.00),
+(2, '12oz', 0.00),
+(2, '16oz', 2.00),
+(3, 'Matte Black', 0.00),
+(3, 'White', 0.00);
 
 -- Active Shopping Cart Items
 INSERT INTO `cart` (`user_id`, `product_id`, `quantity`, `customization`) VALUES

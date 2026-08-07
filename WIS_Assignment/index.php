@@ -13,7 +13,8 @@ $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 $sql = "SELECT p.*, c.name as category_name,
         (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image,
         (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) as avg_rating,
-        (SELECT COUNT(*) FROM reviews WHERE product_id = p.id) as review_count
+        (SELECT COUNT(*) FROM reviews WHERE product_id = p.id) as review_count,
+        EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id AND is_required = 1) as has_required_options
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE 1=1";
@@ -141,7 +142,9 @@ $products = $prod_stmt->fetchAll();
                                 <?php if (is_admin()): ?>
                                     <a href="admin/products.php?action=edit&id=<?= $product['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                 <?php else: ?>
-                                    <?php if ($product['stock'] > 0): ?>
+                                    <?php if ($product['stock'] > 0 && $product['has_required_options']): ?>
+                                        <a href="product_detail.php?id=<?= $product['id'] ?>" class="btn btn-accent btn-sm">Select Options</a>
+                                    <?php elseif ($product['stock'] > 0): ?>
                                         <button class="btn btn-accent btn-sm ajax-add-to-cart" data-product-id="<?= $product['id'] ?>">Add to Cart</button>
                                     <?php else: ?>
                                         <button class="btn btn-secondary btn-sm" disabled style="cursor: not-allowed; opacity: 0.6;">Unavailable</button>

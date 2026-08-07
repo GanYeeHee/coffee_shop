@@ -29,15 +29,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     
     $req_fields = [
-        'username' => 'Username',
+        'username' => 'Username or Email',
         'password' => 'Password'
     ];
     $errors = validate_required($_POST, $req_fields);
-    
+
     if (empty($errors)) {
-        // Query user
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
-        $stmt->execute([$username]);
+        // Query user by username or email
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
+        $stmt->execute([$username, $username]);
         $user = $stmt->fetch();
         
         if ($user) {
@@ -81,12 +81,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
     
     <form action="login.php" method="POST" novalidate>
-        <?= html_input('text', 'username', $username, 'Username', 'Enter your username', $errors) ?>
+        <?= html_input('text', 'username', $username, 'Username or Email', 'Enter your username or email', $errors) ?>
         
         <div style="position: relative;">
             <?= html_input('password', 'password', '', 'Password', 'Enter your password', $errors) ?>
             <div style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
                 <a href="password_reset.php" style="font-size: 0.85rem; color: var(--text-muted);">Forgot password?</a>
+                &middot;
+                <a href="email_reset_request.php" style="font-size: 0.85rem; color: var(--text-muted);">Reset via email</a>
             </div>
         </div>
         
