@@ -7,6 +7,12 @@ if (session_status() === PHP_SESSION_NONE) {
 $is_admin_dir = (strpos($_SERVER['SCRIPT_NAME'], '/admin/') !== false);
 $base_path = $is_admin_dir ? '../' : './';
 
+// Determine current page for nav "active" state highlighting
+$current_page = basename($_SERVER['SCRIPT_NAME']);
+function nav_active(string $page, bool $in_admin_dir, string $current_page, bool $is_admin_dir): string {
+    return ($in_admin_dir === $is_admin_dir && $current_page === $page) ? ' active' : '';
+}
+
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/html_helpers.php';
@@ -47,23 +53,23 @@ if (is_logged_in() && is_member() && isset($pdo)) {
         <nav>
             <ul class="nav-menu">
                 <!-- Public / Shared links -->
-                <li class="nav-item"><a href="<?= $base_path ?>index.php">Home</a></li>
-                
+                <li class="nav-item"><a href="<?= $base_path ?>index.php" class="<?= trim(nav_active('index.php', false, $current_page, $is_admin_dir)) ?>">Home</a></li>
+
                 <?php if (is_admin()): ?>
                     <!-- Admin specific links -->
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/index.php">Dashboard</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/categories.php">Categories</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/products.php">Products</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/option_templates.php">Option Templates</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/vouchers.php">Vouchers</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/members.php">Members</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/orders.php">Orders</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/index.php" class="<?= trim(nav_active('index.php', true, $current_page, $is_admin_dir)) ?>">Dashboard</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/categories.php" class="<?= trim(nav_active('categories.php', true, $current_page, $is_admin_dir)) ?>">Categories</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/products.php" class="<?= trim(nav_active('products.php', true, $current_page, $is_admin_dir)) ?>">Products</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/option_templates.php" class="<?= trim(nav_active('option_templates.php', true, $current_page, $is_admin_dir)) ?>">Option Templates</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/vouchers.php" class="<?= trim(nav_active('vouchers.php', true, $current_page, $is_admin_dir)) ?>">Vouchers</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/members.php" class="<?= trim(nav_active('members.php', true, $current_page, $is_admin_dir)) ?>">Members</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/orders.php" class="<?= trim(nav_active('orders.php', true, $current_page, $is_admin_dir)) ?>">Orders</a></li>
                 <?php elseif (is_member()): ?>
                     <!-- Member specific links -->
-                    <li class="nav-item"><a href="<?= $base_path ?>orders.php">My Orders</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>orders.php" class="<?= trim(nav_active('orders.php', false, $current_page, $is_admin_dir)) ?>">My Orders</a></li>
                     <li class="nav-item">
-                        <a href="<?= $base_path ?>cart.php" class="cart-link">
-                            Cart 
+                        <a href="<?= $base_path ?>cart.php" class="cart-link<?= nav_active('cart.php', false, $current_page, $is_admin_dir) ?>">
+                            Cart
                             <?php if ($cart_count > 0): ?>
                                 <span class="cart-count"><?= $cart_count ?></span>
                             <?php endif; ?>

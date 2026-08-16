@@ -2,7 +2,6 @@
 
 <footer>
     <p>&copy; <?= date('Y') ?> ☕ <strong>The Daily Grind</strong>. All rights reserved.</p>
-    <p>Web-Based Integrated Systems Assignment &bull; Built with PHP, MySQL &amp; jQuery</p>
 </footer>
 
 <!-- Include jQuery via CDN -->

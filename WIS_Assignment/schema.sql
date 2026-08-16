@@ -266,8 +266,7 @@ INSERT INTO `vouchers` (`id`, `code`, `discount_percent`, `min_spend`, `status`)
 
 -- Categories
 INSERT INTO `categories` (`id`, `name`, `description`) VALUES
-(1, 'Espresso & Hot Drinks', 'Freshly brewed hot coffees made from premium organic Arabica beans.'),
-(2, 'Cold Brews & Iced Coffee', 'Slow-steeped cold beverages and refreshing ice-blended coffee specialties.'),
+(1, 'Coffee', 'Freshly brewed hot coffees and refreshing cold brews & iced coffee, all made from premium organic Arabica beans — choose your preferred temperature per drink.'),
 (3, 'Pastries & Desserts', 'Delicious oven-baked goods, croissants, and cakes to accompany your coffee.'),
 (4, 'Coffee Beans & Tumblers', 'Take home our signature roasted blends or premium drinkware.');
 
@@ -275,19 +274,18 @@ INSERT INTO `categories` (`id`, `name`, `description`) VALUES
 INSERT INTO `products` (`id`, `category_id`, `name`, `description`, `price`, `stock`) VALUES
 (1, 1, 'Caramel Macchiato', 'Freshly steamed milk with vanilla-flavored syrup, marked with espresso and topped with caramel drizzle.', 5.50, 15),
 (2, 1, 'Flat White', 'Smooth ristretto shots of espresso with perfect microfoam milk, creating a velvety texture.', 4.80, 12),
-(3, 2, 'Vanilla Sweet Cream Cold Brew', 'Slow-steeped cold brew coffee accented with vanilla and topped with a float of house-made sweet cream.', 5.20, 3),
-(4, 2, 'Iced Matcha Latte', 'Smooth and creamy matcha sweetened and served over ice with choice of milk.', 5.00, 20),
+(4, 1, 'Matcha Latte', 'Smooth and creamy matcha sweetened with choice of milk.', 5.00, 20),
 (5, 3, 'Butter Croissant', 'Classic French pastry with flakey, golden-brown crust and a buttery, soft interior.', 3.50, 8),
 (6, 3, 'Chocolate Chip Cookie', 'Rich and chewy cookie packed with premium dark chocolate chips, served warm.', 3.00, 2),
 (7, 4, 'Signature Blend Beans (500g)', 'Our medium-dark roasted house blend beans featuring chocolatey and nutty flavor profiles.', 18.00, 10),
-(8, 4, 'Stainless Steel Tumbler', 'Keep your coffee hot or iced for hours in this double-walled, vacuum-insulated matte black tumbler.', 15.00, 5);
+(8, 4, 'Stainless Steel Tumbler', 'Keep your coffee hot or iced for hours in this double-walled, vacuum-insulated matte black tumbler.', 15.00, 5),
+(9, 1, 'Cappuccino', 'Espresso topped with steamed milk and a thick layer of foam, a coffeehouse classic.', 4.80, 15);
 
 -- Product Images
 INSERT INTO `product_images` (`product_id`, `image_path`, `is_primary`) VALUES
 (1, 'caramel_macchiato.jpg', 1),
 (1, 'caramel_macchiato_topview.jpg', 0),
 (2, 'flat_white.jpg', 1),
-(3, 'vanilla_cold_brew.jpg', 1),
 (4, 'iced_matcha.jpg', 1),
 (5, 'butter_croissant.jpg', 1),
 (6, 'chocolate_cookie.jpg', 1),
@@ -312,13 +310,24 @@ INSERT INTO `option_template_values` (`template_id`, `label`, `price_delta`) VAL
 (4, 'Less Sugar', 0.00),
 (4, 'Normal Sugar', 0.00);
 
--- Product Option Groups & Values (demonstrates per-product flexibility: drinks get
--- required Temperature/Size choices copied from the templates above, merchandise like the tumbler
--- gets an optional Color choice, and everything else has no options at all)
+-- Product Option Groups & Values (demonstrates per-product flexibility: every Coffee-category
+-- drink gets required Temperature/Size choices plus an optional Sugar Level, copied from the
+-- templates above, merchandise like the tumbler gets an optional Color choice, and non-drink
+-- items like pastries/beans have no options at all)
 INSERT INTO `product_option_groups` (`id`, `product_id`, `template_id`, `name`, `is_required`) VALUES
 (1, 1, 1, 'Temperature', 1),
 (2, 1, 2, 'Size', 1),
-(3, 8, 3, 'Color', 0);
+(3, 8, 3, 'Color', 0),
+(4, 1, 4, 'Sugar Level', 0),
+(5, 2, 1, 'Temperature', 1),
+(6, 2, 2, 'Size', 1),
+(7, 2, 4, 'Sugar Level', 0),
+(8, 4, 1, 'Temperature', 1),
+(9, 4, 2, 'Size', 1),
+(10, 4, 4, 'Sugar Level', 0),
+(11, 9, 1, 'Temperature', 1),
+(12, 9, 2, 'Size', 1),
+(13, 9, 4, 'Sugar Level', 0);
 
 INSERT INTO `product_option_values` (`group_id`, `label`, `price_delta`) VALUES
 (1, 'Hot', 0.00),
@@ -326,7 +335,27 @@ INSERT INTO `product_option_values` (`group_id`, `label`, `price_delta`) VALUES
 (2, '12oz', 0.00),
 (2, '16oz', 2.00),
 (3, 'Matte Black', 0.00),
-(3, 'White', 0.00);
+(3, 'White', 0.00),
+(4, 'Less Sugar', 0.00),
+(4, 'Normal Sugar', 0.00),
+(5, 'Hot', 0.00),
+(5, 'Iced', 0.00),
+(6, '12oz', 0.00),
+(6, '16oz', 2.00),
+(7, 'Less Sugar', 0.00),
+(7, 'Normal Sugar', 0.00),
+(8, 'Hot', 0.00),
+(8, 'Iced', 0.00),
+(9, '12oz', 0.00),
+(9, '16oz', 2.00),
+(10, 'Less Sugar', 0.00),
+(10, 'Normal Sugar', 0.00),
+(11, 'Hot', 0.00),
+(11, 'Iced', 0.00),
+(12, '12oz', 0.00),
+(12, '16oz', 2.00),
+(13, 'Less Sugar', 0.00),
+(13, 'Normal Sugar', 0.00);
 
 -- Active Shopping Cart Items
 INSERT INTO `cart` (`user_id`, `product_id`, `quantity`, `customization`) VALUES
@@ -336,8 +365,7 @@ INSERT INTO `cart` (`user_id`, `product_id`, `quantity`, `customization`) VALUES
 
 -- Product Reviews
 INSERT INTO `reviews` (`user_id`, `product_id`, `rating`, `comment`) VALUES
-(2, 1, 5, 'Best caramel macchiato in town! Super smooth espresso and perfectly sweet.'),
-(2, 3, 4, 'Very refreshing cold brew with delicious cream.');
+(2, 1, 5, 'Best caramel macchiato in town! Super smooth espresso and perfectly sweet.');
 
 -- Orders
 INSERT INTO `orders` (`id`, `user_id`, `voucher_id`, `customer_name`, `customer_phone`, `fulfillment_type`, `shipping_address`, `discount_amount`, `total_price`, `status`) VALUES
@@ -345,7 +373,7 @@ INSERT INTO `orders` (`id`, `user_id`, `voucher_id`, `customer_name`, `customer_
 
 INSERT INTO `order_items` (`order_id`, `product_id`, `price`, `quantity`, `customization`) VALUES
 (1, 1, 5.50, 1, 'Less Ice, Oat Milk'),
-(1, 3, 5.20, 1, 'Regular Ice');
+(1, NULL, 5.20, 1, 'Regular Ice');
 
 INSERT INTO `payments` (`order_id`, `payment_method`, `transaction_id`, `amount`, `payment_status`) VALUES
 (1, 'card', 'TXN_9988776655', 9.63, 'completed');

@@ -133,6 +133,158 @@ if (isset($_POST['action']) && $_POST['action'] === 'ajax_add') {
     exit;
 }
 
+// Handle AJAX quantity stepper (+/-) separately, matching the ajax_add pattern above
+if (isset($_POST['action']) && $_POST['action'] === 'ajax_update_qty') {
+    header('Content-Type: application/json');
+
+    if (!is_logged_in()) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Please log in to update your cart.',
+            'redirect' => 'login.php'
+        ]);
+        exit;
+    }
+
+    $cart_id = isset($_POST['cart_id']) ? intval($_POST['cart_id']) : 0;
+    $change = isset($_POST['change']) ? intval($_POST['change']) : 0;
+    $user_id = $_SESSION['user_id'];
+
+    $stmt = $pdo->prepare("SELECT c.quantity as cart_qty, p.stock, (p.price + c.options_price_delta) as unit_price
+                           FROM cart c
+                           JOIN products p ON c.product_id = p.id
+                           WHERE c.id = ? AND c.user_id = ?");
+    $stmt->execute([$cart_id, $user_id]);
+    $cart_item = $stmt->fetch();
+
+    if (!$cart_item) {
+        echo json_encode(['success' => false, 'message' => 'Cart item not found.']);
+        exit;
+    }
+
+    $requested_qty = $cart_item['cart_qty'] + $change;
+    $new_qty = max(1, min($requested_qty, $cart_item['stock']));
+
+    $pdo->prepare("UPDATE cart SET quantity = ? WHERE id = ?")->execute([$new_qty, $cart_id]);
+
+    $stmt = $pdo->prepare("SELECT SUM(c.quantity * (p.price + c.options_price_delta)) as total, SUM(c.quantity) as item_count
+                           FROM cart c JOIN products p ON c.product_id = p.id WHERE c.user_id = ?");
+    $stmt->execute([$user_id]);
+    $totals = $stmt->fetch();
+
+    echo json_encode([
+        'success' => true,
+        'quantity' => $new_qty,
+        'subtotal' => round($cart_item['unit_price'] * $new_qty, 2),
+        'grand_total' => round($totals['total'] ?? 0, 2),
+        'cart_count' => intval($totals['item_count'] ?? 0),
+        'capped' => $new_qty < $requested_qty,
+        'at_min' => $new_qty <= 1,
+        'at_max' => $new_qty >= $cart_item['stock']
+    ]);
+    exit;
+}
+
+// Handle AJAX: fetch a cart item's editable options + note, for populating the edit modal
+if (isset($_POST['action']) && $_POST['action'] === 'ajax_get_edit_options') {
+    header('Content-Type: application/json');
+
+    if (!is_logged_in()) {
+        echo json_encode(['success' => false, 'message' => 'Please log in to edit your cart.', 'redirect' => 'login.php']);
+        exit;
+    }
+
+    $cart_id = isset($_POST['cart_id']) ? intval($_POST['cart_id']) : 0;
+    $user_id = $_SESSION['user_id'];
+
+    $stmt = $pdo->prepare("SELECT product_id, customization, option_signature FROM cart WHERE id = ? AND user_id = ?");
+    $stmt->execute([$cart_id, $user_id]);
+    $cart_item = $stmt->fetch();
+
+    if (!$cart_item) {
+        echo json_encode(['success' => false, 'message' => 'Cart item not found.']);
+        exit;
+    }
+
+    $selected_ids = $cart_item['option_signature'] !== '' ? explode(',', $cart_item['option_signature']) : [];
+
+    $groups_stmt = $pdo->prepare("SELECT id, name, is_required FROM product_option_groups WHERE product_id = ? ORDER BY id ASC");
+    $groups_stmt->execute([$cart_item['product_id']]);
+    $groups = $groups_stmt->fetchAll();
+
+    $values_stmt = $pdo->prepare("SELECT id, label, price_delta FROM product_option_values WHERE group_id = ? ORDER BY id ASC");
+    foreach ($groups as &$group) {
+        $values_stmt->execute([$group['id']]);
+        $values = $values_stmt->fetchAll();
+        foreach ($values as &$value) {
+            $value['selected'] = in_array((string)$value['id'], $selected_ids, true);
+        }
+        unset($value);
+        $group['values'] = $values;
+    }
+    unset($group);
+
+    echo json_encode([
+        'success' => true,
+        'cart_id' => $cart_id,
+        'customization' => $cart_item['customization'],
+        'groups' => $groups
+    ]);
+    exit;
+}
+
+// Handle AJAX: save edited options + customization note for a cart item
+if (isset($_POST['action']) && $_POST['action'] === 'ajax_save_edit') {
+    header('Content-Type: application/json');
+
+    if (!is_logged_in()) {
+        echo json_encode(['success' => false, 'message' => 'Please log in to edit your cart.', 'redirect' => 'login.php']);
+        exit;
+    }
+
+    $cart_id = isset($_POST['cart_id']) ? intval($_POST['cart_id']) : 0;
+    $customization = trim($_POST['customization'] ?? '');
+    $selected_options = $_POST['options'] ?? [];
+    $user_id = $_SESSION['user_id'];
+
+    $stmt = $pdo->prepare("SELECT c.product_id, c.quantity, p.stock
+                           FROM cart c JOIN products p ON c.product_id = p.id
+                           WHERE c.id = ? AND c.user_id = ?");
+    $stmt->execute([$cart_id, $user_id]);
+    $cart_item = $stmt->fetch();
+
+    if (!$cart_item) {
+        echo json_encode(['success' => false, 'message' => 'Cart item not found.']);
+        exit;
+    }
+
+    $resolved = resolve_selected_options($pdo, $cart_item['product_id'], $selected_options);
+
+    if ($resolved['error']) {
+        echo json_encode(['success' => false, 'message' => $resolved['error']]);
+        exit;
+    }
+
+    // The cart's unique key is (user_id, product_id, customization, option_signature) - if the
+    // edited combination already matches another row, merge quantities into it instead of colliding.
+    $dup_stmt = $pdo->prepare("SELECT id, quantity FROM cart
+                               WHERE user_id = ? AND product_id = ? AND customization = ? AND option_signature = ? AND id != ?");
+    $dup_stmt->execute([$user_id, $cart_item['product_id'], $customization, $resolved['option_signature'], $cart_id]);
+    $duplicate = $dup_stmt->fetch();
+
+    if ($duplicate) {
+        $merged_qty = min($duplicate['quantity'] + $cart_item['quantity'], $cart_item['stock']);
+        $pdo->prepare("UPDATE cart SET quantity = ? WHERE id = ?")->execute([$merged_qty, $duplicate['id']]);
+        $pdo->prepare("DELETE FROM cart WHERE id = ?")->execute([$cart_id]);
+    } else {
+        $pdo->prepare("UPDATE cart SET customization = ?, option_signature = ?, options_summary = ?, options_price_delta = ? WHERE id = ?")
+            ->execute([$customization, $resolved['option_signature'], $resolved['options_summary'], $resolved['options_price_delta'], $cart_id]);
+    }
+
+    echo json_encode(['success' => true, 'message' => 'Cart item updated.']);
+    exit;
+}
+
 // Below handles standard page requests
 require_once __DIR__ . '/includes/header.php';
 
@@ -316,20 +468,22 @@ unset($_SESSION['flash_error']);
                         </td>
                         <td>RM<?= number_format($item['unit_price'], 2) ?></td>
                         <td>
-                            <form action="cart.php" method="POST" style="display: flex; align-items: center; gap: 0.5rem;">
-                                <input type="hidden" name="action" value="update">
-                                <input type="hidden" name="cart_id" value="<?= $item['cart_id'] ?>">
-                                <input type="number" name="quantity" class="form-control" value="<?= $item['quantity'] ?>" min="1" max="<?= $item['stock'] ?>" style="width: 70px; padding: 0.4rem; text-align: center;">
-                                <button type="submit" class="btn btn-secondary btn-sm" title="Update Quantity">Update</button>
-                            </form>
+                            <div class="qty-stepper" data-cart-id="<?= $item['cart_id'] ?>" data-stock="<?= $item['stock'] ?>">
+                                <button type="button" class="qty-btn qty-decrease" title="Decrease quantity" <?= $item['quantity'] <= 1 ? 'disabled' : '' ?>>&minus;</button>
+                                <span class="qty-value"><?= $item['quantity'] ?></span>
+                                <button type="button" class="qty-btn qty-increase" title="Increase quantity" <?= $item['quantity'] >= $item['stock'] ? 'disabled' : '' ?>>+</button>
+                            </div>
                         </td>
-                        <td style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($subtotal, 2) ?></td>
+                        <td id="subtotal-<?= $item['cart_id'] ?>" style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($subtotal, 2) ?></td>
                         <td>
-                            <form action="cart.php" method="POST">
-                                <input type="hidden" name="action" value="remove">
-                                <input type="hidden" name="cart_id" value="<?= $item['cart_id'] ?>">
-                                <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Remove '<?= htmlspecialchars($item['name']) ?>' from cart?">Remove</button>
-                            </form>
+                            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                <button type="button" class="btn btn-secondary btn-sm edit-item-btn" data-cart-id="<?= $item['cart_id'] ?>" title="Edit options / note">Edit</button>
+                                <form action="cart.php" method="POST">
+                                    <input type="hidden" name="action" value="remove">
+                                    <input type="hidden" name="cart_id" value="<?= $item['cart_id'] ?>">
+                                    <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Remove '<?= htmlspecialchars($item['name']) ?>' from cart?">Remove</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -340,7 +494,7 @@ unset($_SESSION['flash_error']);
     <div class="cart-total-box">
         <div class="cart-total-line">
             <span>Subtotal:</span>
-            <strong>RM<?= number_format($grand_total, 2) ?></strong>
+            <strong id="cart-subtotal-value">RM<?= number_format($grand_total, 2) ?></strong>
         </div>
         <div class="cart-total-line">
             <span>Estimated Shipping:</span>
@@ -348,9 +502,25 @@ unset($_SESSION['flash_error']);
         </div>
         <div class="cart-total-line final">
             <span>Total:</span>
-            <span>RM<?= number_format($grand_total, 2) ?></span>
+            <span id="cart-total-value">RM<?= number_format($grand_total, 2) ?></span>
         </div>
         <a href="checkout.php" class="btn btn-accent btn-block" style="text-align: center;">Proceed to Checkout &rarr;</a>
+    </div>
+
+    <div id="edit-item-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 style="margin: 0;">Edit Item</h3>
+                <button type="button" class="modal-close" id="edit-item-close" aria-label="Close">&times;</button>
+            </div>
+            <div id="edit-item-body" class="modal-body">
+                <p style="color: var(--text-muted);">Loading...</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" id="edit-item-cancel">Cancel</button>
+                <button type="button" class="btn btn-accent btn-sm" id="edit-item-save">Save Changes</button>
+            </div>
+        </div>
     </div>
 <?php endif; ?>
 
