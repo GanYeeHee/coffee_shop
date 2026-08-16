@@ -41,41 +41,6 @@ if (!$product) {
     exit;
 }
 
-// Handle review submission (one review per member per product; resubmitting updates it)
-$review_errors = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_review') {
-    $_POST = sanitize_input($_POST);
-
-    if (!is_member()) {
-        $review_errors['general'] = "Please log in as a member to submit a review.";
-    } else {
-        $rating = intval($_POST['rating'] ?? 0);
-        $comment = $_POST['comment'] ?? '';
-
-        if ($rating < 1 || $rating > 5) {
-            $review_errors['rating'] = "Please select a rating between 1 and 5.";
-        }
-
-        if (empty($review_errors)) {
-            $existing_stmt = $pdo->prepare("SELECT id FROM reviews WHERE user_id = ? AND product_id = ?");
-            $existing_stmt->execute([$_SESSION['user_id'], $id]);
-            $existing_review_id = $existing_stmt->fetchColumn();
-
-            if ($existing_review_id) {
-                $pdo->prepare("UPDATE reviews SET rating = ?, comment = ? WHERE id = ?")
-                    ->execute([$rating, $comment !== '' ? $comment : null, $existing_review_id]);
-                $_SESSION['flash_success'] = "Your review has been updated!";
-            } else {
-                $pdo->prepare("INSERT INTO reviews (user_id, product_id, rating, comment) VALUES (?, ?, ?, ?)")
-                    ->execute([$_SESSION['user_id'], $id, $rating, $comment !== '' ? $comment : null]);
-                $_SESSION['flash_success'] = "Thank you for your review!";
-            }
-            header("Location: product_detail.php?id=" . $id);
-            exit;
-        }
-    }
-}
-
 // Rating summary + review list
 $rating_stmt = $pdo->prepare("SELECT AVG(rating) as avg_rating, COUNT(*) as review_count FROM reviews WHERE product_id = ?");
 $rating_stmt->execute([$id]);
@@ -84,13 +49,6 @@ $rating_summary = $rating_stmt->fetch();
 $reviews_stmt = $pdo->prepare("SELECT r.*, u.username FROM reviews r JOIN users u ON r.user_id = u.id WHERE r.product_id = ? ORDER BY r.created_at DESC");
 $reviews_stmt->execute([$id]);
 $reviews = $reviews_stmt->fetchAll();
-
-$my_review = null;
-if (is_member()) {
-    $my_stmt = $pdo->prepare("SELECT * FROM reviews WHERE user_id = ? AND product_id = ?");
-    $my_stmt->execute([$_SESSION['user_id'], $id]);
-    $my_review = $my_stmt->fetch();
-}
 
 $flash_success = $_SESSION['flash_success'] ?? null;
 unset($_SESSION['flash_success']);
@@ -213,18 +171,9 @@ unset($_SESSION['flash_error']);
     <h3>Customer Reviews</h3>
 
     <?php if (is_member()): ?>
-        <form action="product_detail.php?id=<?= $id ?>" method="POST" novalidate style="margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
-            <input type="hidden" name="action" value="submit_review">
-
-            <?php if (isset($review_errors['general'])): ?>
-                <div class="alert alert-danger"><?= htmlspecialchars($review_errors['general']) ?></div>
-            <?php endif; ?>
-
-            <?= html_select('rating', [1 => '1 - Poor', 2 => '2 - Fair', 3 => '3 - Good', 4 => '4 - Very Good', 5 => '5 - Excellent'], $my_review['rating'] ?? 5, 'Your Rating', $review_errors) ?>
-            <?= html_textarea('comment', $my_review['comment'] ?? '', 'Your Review (Optional)', 'Share your thoughts about this product...', $review_errors) ?>
-
-            <button type="submit" class="btn btn-accent btn-sm"><?= $my_review ? 'Update My Review' : 'Submit Review' ?></button>
-        </form>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+            Purchased this item? Rate it from your <a href="orders.php">Order History</a> page once your order is marked Completed.
+        </p>
     <?php elseif (!is_admin()): ?>
         <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
             <a href="login.php">Log in</a> as a member to write a review.

@@ -60,6 +60,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
+// Handle review submission (only for items in a Completed order that belongs to this user)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_review') {
+    $_POST = sanitize_input($_POST);
+    $review_order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
+    $review_product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    $rating = isset($_POST['rating']) ? intval($_POST['rating']) : 0;
+    $comment = $_POST['comment'] ?? '';
+
+    // Verify the order belongs to this user and is Completed
+    $stmt = $pdo->prepare("SELECT id FROM orders WHERE id = ? AND user_id = ? AND status = 'Completed'");
+    $stmt->execute([$review_order_id, $user_id]);
+    $owns_completed_order = $stmt->fetch();
+
+    // Verify the product was actually part of that order
+    $item_stmt = $pdo->prepare("SELECT id FROM order_items WHERE order_id = ? AND product_id = ?");
+    $item_stmt->execute([$review_order_id, $review_product_id]);
+    $product_in_order = $item_stmt->fetch();
+
+    if ($owns_completed_order && $product_in_order && $rating >= 1 && $rating <= 5) {
+        $existing_stmt = $pdo->prepare("SELECT id FROM reviews WHERE user_id = ? AND product_id = ?");
+        $existing_stmt->execute([$user_id, $review_product_id]);
+        $existing_review_id = $existing_stmt->fetchColumn();
+
+        if ($existing_review_id) {
+            $pdo->prepare("UPDATE reviews SET rating = ?, comment = ? WHERE id = ?")
+                ->execute([$rating, $comment !== '' ? $comment : null, $existing_review_id]);
+        } else {
+            $pdo->prepare("INSERT INTO reviews (user_id, product_id, rating, comment) VALUES (?, ?, ?, ?)")
+                ->execute([$user_id, $review_product_id, $rating, $comment !== '' ? $comment : null]);
+        }
+        $_SESSION['flash_success'] = "Thank you for your review!";
+    } else {
+        $_SESSION['flash_error'] = "Unable to submit review for this item.";
+    }
+
+    header("Location: orders.php?detail_id=" . $review_order_id);
+    exit;
+}
+
 // Fetch all orders for this user
 $stmt = $pdo->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC");
 $stmt->execute([$user_id]);
@@ -96,6 +135,20 @@ if ($expand_order_id > 0) {
         $pay_stmt = $pdo->prepare("SELECT * FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1");
         $pay_stmt->execute([$expand_order_id]);
         $expand_payment = $pay_stmt->fetch();
+    }
+}
+
+// Load this user's existing reviews for the items in the expanded order (Completed orders only)
+$my_reviews = [];
+if ($expand_order && $expand_order['status'] === 'Completed' && !empty($expand_items)) {
+    $product_ids = array_unique(array_filter(array_column($expand_items, 'product_id')));
+    if ($product_ids) {
+        $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
+        $rev_stmt = $pdo->prepare("SELECT product_id, rating, comment FROM reviews WHERE user_id = ? AND product_id IN ($placeholders)");
+        $rev_stmt->execute([$user_id, ...$product_ids]);
+        foreach ($rev_stmt->fetchAll() as $r) {
+            $my_reviews[$r['product_id']] = $r;
+        }
     }
 }
 ?>
@@ -205,6 +258,22 @@ if ($expand_order_id > 0) {
                                     <span style="font-size: 0.75rem; color: var(--text-muted);"><?= htmlspecialchars($item['category_name'] ?? '') ?></span>
                                     <?php if (!empty($item['customization'])): ?>
                                         <br><span style="font-size: 0.75rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($expand_order['status'] === 'Completed' && !empty($item['product_id'])): ?>
+                                        <?php $existing = $my_reviews[$item['product_id']] ?? null; ?>
+                                        <details style="margin-top: 0.5rem;">
+                                            <summary style="cursor: pointer; color: var(--accent); font-size: 0.8rem;">
+                                                <?= $existing ? "★ {$existing['rating']}/5 &mdash; Update your review" : 'Rate &amp; review this item' ?>
+                                            </summary>
+                                            <form action="orders.php?detail_id=<?= $expand_order['id'] ?>" method="POST" style="margin-top: 0.6rem; min-width: 220px;">
+                                                <input type="hidden" name="action" value="submit_review">
+                                                <input type="hidden" name="order_id" value="<?= $expand_order['id'] ?>">
+                                                <input type="hidden" name="product_id" value="<?= $item['product_id'] ?>">
+                                                <?= html_select('rating', [1 => '1 - Poor', 2 => '2 - Fair', 3 => '3 - Good', 4 => '4 - Very Good', 5 => '5 - Excellent'], $existing['rating'] ?? 5, 'Your Rating') ?>
+                                                <?= html_textarea('comment', $existing['comment'] ?? '', 'Your Review (Optional)', 'Share your thoughts about this product...') ?>
+                                                <button type="submit" class="btn btn-accent btn-sm"><?= $existing ? 'Update Review' : 'Submit Review' ?></button>
+                                            </form>
+                                        </details>
                                     <?php endif; ?>
                                 </td>
                                 <td><?= $item['quantity'] ?></td>

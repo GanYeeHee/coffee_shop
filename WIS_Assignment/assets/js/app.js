@@ -1,5 +1,9 @@
 $(document).ready(function() {
 
+    function escapeHtml(text) {
+        return $('<div>').text(text == null ? '' : text).html();
+    }
+
     // 1. AJAX: Add to Cart from Product Cards (Homepage)
     $(document).on('click', '.ajax-add-to-cart', function(e) {
         e.preventDefault();
@@ -187,6 +191,110 @@ $(document).ready(function() {
             },
             error: function () {
                 $msg.text('Could not validate voucher.').css('color', 'var(--danger)');
+            }
+        });
+    });
+
+    // 11. Cart: Edit Item (Options + Customization Note) via Modal
+    $(document).on('click', '.edit-item-btn', function () {
+        var cartId = $(this).data('cart-id');
+        var $overlay = $('#edit-item-overlay').data('cart-id', cartId);
+        var $body = $('#edit-item-body');
+
+        $body.html('<p style="color: var(--text-muted);">Loading...</p>');
+        $overlay.show();
+
+        $.ajax({
+            url: 'cart.php',
+            type: 'POST',
+            data: { action: 'ajax_get_edit_options', cart_id: cartId },
+            dataType: 'json',
+            success: function (response) {
+                if (!response.success) {
+                    $body.html('<p style="color: var(--danger);">' + escapeHtml(response.message || 'Could not load item.') + '</p>');
+                    return;
+                }
+
+                var html = '';
+                response.groups.forEach(function (group) {
+                    html += '<div class="form-group"><label>' + escapeHtml(group.name) + (group.is_required == 1 ? ' *' : '') + '</label>';
+                    html += '<select class="form-control" name="options[' + group.id + ']"' + (group.is_required == 1 ? ' required' : '') + '>';
+                    html += '<option value="">' + (group.is_required == 1 ? '-- Select --' : 'None') + '</option>';
+                    group.values.forEach(function (value) {
+                        var label = escapeHtml(value.label);
+                        var priceDelta = parseFloat(value.price_delta);
+                        if (priceDelta > 0) {
+                            label += ' (+RM' + priceDelta.toFixed(2) + ')';
+                        }
+                        html += '<option value="' + value.id + '"' + (value.selected ? ' selected' : '') + '>' + label + '</option>';
+                    });
+                    html += '</select></div>';
+                });
+
+                html += '<div class="form-group"><label for="edit-item-customization">Customization (Optional)</label>';
+                html += '<input type="text" class="form-control" id="edit-item-customization" value="' + escapeHtml(response.customization) + '" placeholder="e.g. Oat milk, Extra shot, Less ice"></div>';
+
+                $body.html(html);
+            },
+            error: function () {
+                $body.html('<p style="color: var(--danger);">An error occurred while loading this item.</p>');
+            }
+        });
+    });
+
+    $(document).on('click', '#edit-item-close, #edit-item-cancel', function () {
+        $('#edit-item-overlay').hide();
+    });
+
+    $(document).on('click', '#edit-item-overlay', function (e) {
+        if (e.target.id === 'edit-item-overlay') {
+            $('#edit-item-overlay').hide();
+        }
+    });
+
+    $(document).on('click', '#edit-item-save', function () {
+        var $btn = $(this);
+        var cartId = $('#edit-item-overlay').data('cart-id');
+        var requiredMissing = false;
+
+        var data = {
+            action: 'ajax_save_edit',
+            cart_id: cartId,
+            customization: $('#edit-item-customization').val()
+        };
+
+        $('#edit-item-body select').each(function () {
+            var match = $(this).attr('name').match(/options\[(\d+)\]/);
+            if (!match) return;
+            if ($(this).prop('required') && !$(this).val()) {
+                requiredMissing = true;
+            }
+            data['options[' + match[1] + ']'] = $(this).val();
+        });
+
+        if (requiredMissing) {
+            alert('Please select an option for all required fields.');
+            return;
+        }
+
+        $btn.prop('disabled', true).text('Saving...');
+
+        $.ajax({
+            url: 'cart.php',
+            type: 'POST',
+            data: data,
+            dataType: 'json',
+            success: function (response) {
+                if (response.success) {
+                    window.location.reload();
+                } else {
+                    alert(response.message || 'Could not save changes.');
+                    $btn.prop('disabled', false).text('Save Changes');
+                }
+            },
+            error: function () {
+                alert('An error occurred while saving changes.');
+                $btn.prop('disabled', false).text('Save Changes');
             }
         });
     });
