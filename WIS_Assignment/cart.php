@@ -133,6 +133,58 @@ if (isset($_POST['action']) && $_POST['action'] === 'ajax_add') {
     exit;
 }
 
+// Handle AJAX quantity stepper (+/-) separately, matching the ajax_add pattern above
+if (isset($_POST['action']) && $_POST['action'] === 'ajax_update_qty') {
+    header('Content-Type: application/json');
+
+    if (!is_logged_in()) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Please log in to update your cart.',
+            'redirect' => 'login.php'
+        ]);
+        exit;
+    }
+
+    $cart_id = isset($_POST['cart_id']) ? intval($_POST['cart_id']) : 0;
+    $change = isset($_POST['change']) ? intval($_POST['change']) : 0;
+    $user_id = $_SESSION['user_id'];
+
+    $stmt = $pdo->prepare("SELECT c.quantity as cart_qty, p.stock, (p.price + c.options_price_delta) as unit_price
+                           FROM cart c
+                           JOIN products p ON c.product_id = p.id
+                           WHERE c.id = ? AND c.user_id = ?");
+    $stmt->execute([$cart_id, $user_id]);
+    $cart_item = $stmt->fetch();
+
+    if (!$cart_item) {
+        echo json_encode(['success' => false, 'message' => 'Cart item not found.']);
+        exit;
+    }
+
+    $requested_qty = $cart_item['cart_qty'] + $change;
+    $new_qty = max(1, min($requested_qty, $cart_item['stock']));
+
+    $pdo->prepare("UPDATE cart SET quantity = ? WHERE id = ?")->execute([$new_qty, $cart_id]);
+
+    $stmt = $pdo->prepare("SELECT SUM(c.quantity * (p.price + c.options_price_delta)) as total, SUM(c.quantity) as item_count
+                           FROM cart c JOIN products p ON c.product_id = p.id WHERE c.user_id = ?");
+    $stmt->execute([$user_id]);
+    $totals = $stmt->fetch();
+
+    echo json_encode([
+        'success' => true,
+        'quantity' => $new_qty,
+        'subtotal' => round($cart_item['unit_price'] * $new_qty, 2),
+        'grand_total' => round($totals['total'] ?? 0, 2),
+        'cart_count' => intval($totals['item_count'] ?? 0),
+        'capped' => $new_qty < $requested_qty,
+        'at_min' => $new_qty <= 1,
+        'at_max' => $new_qty >= $cart_item['stock']
+    ]);
+    exit;
+}
+
 // Below handles standard page requests
 require_once __DIR__ . '/includes/header.php';
 
@@ -316,14 +368,13 @@ unset($_SESSION['flash_error']);
                         </td>
                         <td>RM<?= number_format($item['unit_price'], 2) ?></td>
                         <td>
-                            <form action="cart.php" method="POST" style="display: flex; align-items: center; gap: 0.5rem;">
-                                <input type="hidden" name="action" value="update">
-                                <input type="hidden" name="cart_id" value="<?= $item['cart_id'] ?>">
-                                <input type="number" name="quantity" class="form-control" value="<?= $item['quantity'] ?>" min="1" max="<?= $item['stock'] ?>" style="width: 70px; padding: 0.4rem; text-align: center;">
-                                <button type="submit" class="btn btn-secondary btn-sm" title="Update Quantity">Update</button>
-                            </form>
+                            <div class="qty-stepper" data-cart-id="<?= $item['cart_id'] ?>" data-stock="<?= $item['stock'] ?>">
+                                <button type="button" class="qty-btn qty-decrease" title="Decrease quantity" <?= $item['quantity'] <= 1 ? 'disabled' : '' ?>>&minus;</button>
+                                <span class="qty-value"><?= $item['quantity'] ?></span>
+                                <button type="button" class="qty-btn qty-increase" title="Increase quantity" <?= $item['quantity'] >= $item['stock'] ? 'disabled' : '' ?>>+</button>
+                            </div>
                         </td>
-                        <td style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($subtotal, 2) ?></td>
+                        <td id="subtotal-<?= $item['cart_id'] ?>" style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($subtotal, 2) ?></td>
                         <td>
                             <form action="cart.php" method="POST">
                                 <input type="hidden" name="action" value="remove">
@@ -340,7 +391,7 @@ unset($_SESSION['flash_error']);
     <div class="cart-total-box">
         <div class="cart-total-line">
             <span>Subtotal:</span>
-            <strong>RM<?= number_format($grand_total, 2) ?></strong>
+            <strong id="cart-subtotal-value">RM<?= number_format($grand_total, 2) ?></strong>
         </div>
         <div class="cart-total-line">
             <span>Estimated Shipping:</span>
@@ -348,7 +399,7 @@ unset($_SESSION['flash_error']);
         </div>
         <div class="cart-total-line final">
             <span>Total:</span>
-            <span>RM<?= number_format($grand_total, 2) ?></span>
+            <span id="cart-total-value">RM<?= number_format($grand_total, 2) ?></span>
         </div>
         <a href="checkout.php" class="btn btn-accent btn-block" style="text-align: center;">Proceed to Checkout &rarr;</a>
     </div>
