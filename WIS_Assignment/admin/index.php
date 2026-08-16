@@ -47,7 +47,7 @@ $recent_orders = $recent_orders_stmt->fetchAll();
     <div class="stat-grid">
         <div class="stat-card">
             <span class="title">Total Revenue</span>
-            <span class="value" style="color: var(--success);">$<?= number_format($total_sales, 2) ?></span>
+            <span class="value" style="color: var(--success);">RM<?= number_format($total_sales, 2) ?></span>
         </div>
         <div class="stat-card">
             <span class="title">Total Orders</span>
@@ -89,7 +89,7 @@ $recent_orders = $recent_orders_stmt->fetchAll();
                                     <td><strong>#<?= $ord['id'] ?></strong></td>
                                     <td><?= htmlspecialchars($ord['username'] ?? 'Guest/Deleted') ?></td>
                                     <td><?= date('d M Y', strtotime($ord['order_date'])) ?></td>
-                                    <td>$<?= number_format($ord['total_price'], 2) ?></td>
+                                    <td>RM<?= number_format($ord['total_price'], 2) ?></td>
                                     <td>
                                         <span class="badge badge-<?= strtolower($ord['status']) ?>">
                                             <?= htmlspecialchars($ord['status']) ?>
