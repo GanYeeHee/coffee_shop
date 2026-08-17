@@ -524,6 +524,10 @@ textarea.form-control {
     overflow: hidden;
 }
 
+.product-spacer {
+    flex: 1;
+}
+
 .product-price-action {
     display: flex;
     justify-content: space-between;

@@ -134,7 +134,7 @@ $products = $prod_stmt->fetchAll();
                             <?php if ($product['review_count'] > 0): ?>
                                 <span style="font-size: 0.85rem; color: var(--text-muted);">★ <?= number_format($product['avg_rating'], 1) ?> (<?= $product['review_count'] ?>)</span>
                             <?php endif; ?>
-                            <p class="product-desc"><?= htmlspecialchars($product['description']) ?></p>
+                            <div class="product-spacer"></div>
                             
                             <div class="product-price-action">
                                 <span class="product-price">RM<?= number_format($product['price'], 2) ?></span>
@@ -145,7 +145,7 @@ $products = $prod_stmt->fetchAll();
                                     <?php if ($product['stock'] > 0 && $product['has_required_options']): ?>
                                         <a href="product_detail.php?id=<?= $product['id'] ?>" class="btn btn-accent btn-sm">Select Options</a>
                                     <?php elseif ($product['stock'] > 0): ?>
-                                        <button class="btn btn-accent btn-sm ajax-add-to-cart" data-product-id="<?= $product['id'] ?>">Add to Cart</button>
+                                        <a href="product_detail.php?id=<?= $product['id'] ?>" class="btn btn-accent btn-sm">Add to Cart</a>
                                     <?php else: ?>
                                         <button class="btn btn-secondary btn-sm" disabled style="cursor: not-allowed; opacity: 0.6;">Unavailable</button>
                                     <?php endif; ?>
