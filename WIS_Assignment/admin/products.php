@@ -395,7 +395,7 @@ unset($_SESSION['flash_error']);
                                 </td>
                                 <td><strong><?= htmlspecialchars($p['name']) ?></strong></td>
                                 <td><?= htmlspecialchars($p['category_name'] ?? 'Uncategorized') ?></td>
-                                <td style="font-weight: 500; color: var(--accent);">$<?= number_format($p['price'], 2) ?></td>
+                                <td style="font-weight: 500; color: var(--accent);">RM<?= number_format($p['price'], 2) ?></td>
                                 <td><?= $p['stock'] ?></td>
                                 <td>
                                     <?php if ($p['stock'] == 0): ?>
@@ -431,7 +431,7 @@ unset($_SESSION['flash_error']);
             <?= html_textarea('description', $description, 'Description', 'Provide description details of the drink/bean...', $errors) ?>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <?= html_input('text', 'price', $price, 'Price ($)', 'e.g., 4.50', $errors) ?>
+                <?= html_input('text', 'price', $price, 'Price (RM)', 'e.g., 4.50', $errors) ?>
                 <?= html_input('number', 'stock', $stock, 'Stock Quantity', 'e.g. 20', $errors, ['min' => '0']) ?>
             </div>
 
@@ -458,7 +458,7 @@ unset($_SESSION['flash_error']);
             <?= html_textarea('description', $description, 'Description', 'Update description details...', $errors) ?>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <?= html_input('text', 'price', $price, 'Price ($)', 'e.g., 4.50', $errors) ?>
+                <?= html_input('text', 'price', $price, 'Price (RM)', 'e.g., 4.50', $errors) ?>
                 <?= html_input('number', 'stock', $stock, 'Stock Quantity', 'e.g., 20', $errors, ['min' => '0']) ?>
             </div>
 

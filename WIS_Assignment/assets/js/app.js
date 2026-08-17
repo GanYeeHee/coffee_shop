@@ -1,62 +1,6 @@
 $(document).ready(function() {
 
-    function escapeHtml(text) {
-        return $('<div>').text(text == null ? '' : text).html();
-    }
-
-    // 1. AJAX: Add to Cart from Product Cards (Homepage)
-    $(document).on('click', '.ajax-add-to-cart', function(e) {
-        e.preventDefault();
-        
-        var $btn = $(this);
-        var productId = $btn.data('product-id');
-        
-        // Disable button temporarily to prevent double clicks
-        $btn.prop('disabled', true).text('Adding...');
-
-        $.ajax({
-            url: 'cart.php',
-            type: 'POST',
-            data: {
-                action: 'ajax_add',
-                product_id: productId,
-                quantity: 1
-            },
-            dataType: 'json',
-            success: function(response) {
-                if (response.success) {
-                    // Update cart count badge in header
-                    var $badge = $('.cart-count');
-                    if ($badge.length) {
-                        $badge.text(response.cart_count).show();
-                    } else {
-                        // If no badge existed (count was 0), insert one
-                        $('.cart-link').append('<span class="cart-count">' + response.cart_count + '</span>');
-                    }
-                    
-                    // Flash feedback message
-                    $btn.text('Added! ✓').addClass('btn-success').removeClass('btn-accent');
-                    setTimeout(function() {
-                        $btn.prop('disabled', false).text('Add to Cart').removeClass('btn-success').addClass('btn-accent');
-                    }, 1500);
-                } else {
-                    // Show error message
-                    alert(response.message || 'Failed to add item to cart. Please log in first.');
-                    if (response.redirect) {
-                        window.location.href = response.redirect;
-                    } else {
-                        $btn.prop('disabled', false).text('Add to Cart');
-                    }
-                }
-            },
-            error: function() {
-                alert('An error occurred. Please check if you are logged in.');
-                $btn.prop('disabled', false).text('Add to Cart');
-            }
-        });
-    });
-
-    // 2. AJAX: Cart Quantity Stepper (+/-) with Auto-Save
+    // 1. AJAX: Cart Quantity Stepper (+/-) with Auto-Save
     $(document).on('click', '.qty-btn', function () {
         var $btn = $(this);
         if ($btn.prop('disabled')) return;
@@ -103,7 +47,7 @@ $(document).ready(function() {
         });
     });
 
-    // 3. Photo Upload Preview
+    // 2. Photo Upload Preview
     // Listen for file changes and show immediate client-side preview
     $(document).on('change', '.image-upload-input', function() {
         var input = this;
@@ -122,7 +66,7 @@ $(document).ready(function() {
         }
     });
 
-    // 4. Form Submission Confirmations
+    // 3. Form Submission Confirmations
     $(document).on('click', '.confirm-action', function(e) {
         var message = $(this).data('confirm-message') || 'Are you sure you want to perform this action?';
         if (!confirm(message)) {
@@ -131,14 +75,14 @@ $(document).ready(function() {
         }
     });
 
-    // 5. Product Gallery Thumbnail Switching
+    // 4. Product Gallery Thumbnail Switching
     $(document).on('click', '.gallery-thumb', function () {
         $('.detail-img').attr('src', $(this).data('full'));
         $('.gallery-thumb').removeClass('active');
         $(this).addClass('active');
     });
 
-    // 6. Client-side Card Input Masking and Check (UX Enhancement)
+    // 5. Client-side Card Input Masking and Check (UX Enhancement)
     var $cardInput = $('#field-card_number');
     if ($cardInput.length) {
         $cardInput.on('input', function() {
@@ -152,22 +96,22 @@ $(document).ready(function() {
         });
     }
 
-    // 7. Checkout: Fulfillment Type Toggle (Delivery vs Pickup)
+    // 6. Checkout: Fulfillment Type Toggle (Delivery vs Pickup)
     $(document).on('change', 'input[name=fulfillment_type]', function () {
         $('#delivery-section').toggle($(this).val() === 'delivery');
     });
 
-    // 8. Checkout: Payment Method Toggle (Card fields shown only for Card)
+    // 7. Checkout: Payment Method Toggle (Card fields shown only for Card)
     $(document).on('change', 'input[name=payment_method]', function () {
         $('#card-payment-section').toggle($(this).val() === 'card');
     });
 
-    // 9. Checkout: Saved Address vs New Address Toggle
+    // 8. Checkout: Saved Address vs New Address Toggle
     $(document).on('change', '#field-address_id', function () {
         $('#new-address-section').toggle($(this).val() === 'new');
     });
 
-    // 10. Checkout: Apply Voucher Code (AJAX preview - server always re-validates on submit)
+    // 9. Checkout: Apply Voucher Code (AJAX preview - server always re-validates on submit)
     $(document).on('click', '#apply-voucher-btn', function (e) {
         e.preventDefault();
         var code = $('#field-voucher_code').val();
@@ -191,110 +135,6 @@ $(document).ready(function() {
             },
             error: function () {
                 $msg.text('Could not validate voucher.').css('color', 'var(--danger)');
-            }
-        });
-    });
-
-    // 11. Cart: Edit Item (Options + Customization Note) via Modal
-    $(document).on('click', '.edit-item-btn', function () {
-        var cartId = $(this).data('cart-id');
-        var $overlay = $('#edit-item-overlay').data('cart-id', cartId);
-        var $body = $('#edit-item-body');
-
-        $body.html('<p style="color: var(--text-muted);">Loading...</p>');
-        $overlay.show();
-
-        $.ajax({
-            url: 'cart.php',
-            type: 'POST',
-            data: { action: 'ajax_get_edit_options', cart_id: cartId },
-            dataType: 'json',
-            success: function (response) {
-                if (!response.success) {
-                    $body.html('<p style="color: var(--danger);">' + escapeHtml(response.message || 'Could not load item.') + '</p>');
-                    return;
-                }
-
-                var html = '';
-                response.groups.forEach(function (group) {
-                    html += '<div class="form-group"><label>' + escapeHtml(group.name) + (group.is_required == 1 ? ' *' : '') + '</label>';
-                    html += '<select class="form-control" name="options[' + group.id + ']"' + (group.is_required == 1 ? ' required' : '') + '>';
-                    html += '<option value="">' + (group.is_required == 1 ? '-- Select --' : 'None') + '</option>';
-                    group.values.forEach(function (value) {
-                        var label = escapeHtml(value.label);
-                        var priceDelta = parseFloat(value.price_delta);
-                        if (priceDelta > 0) {
-                            label += ' (+RM' + priceDelta.toFixed(2) + ')';
-                        }
-                        html += '<option value="' + value.id + '"' + (value.selected ? ' selected' : '') + '>' + label + '</option>';
-                    });
-                    html += '</select></div>';
-                });
-
-                html += '<div class="form-group"><label for="edit-item-customization">Customization (Optional)</label>';
-                html += '<input type="text" class="form-control" id="edit-item-customization" value="' + escapeHtml(response.customization) + '" placeholder="e.g. Oat milk, Extra shot, Less ice"></div>';
-
-                $body.html(html);
-            },
-            error: function () {
-                $body.html('<p style="color: var(--danger);">An error occurred while loading this item.</p>');
-            }
-        });
-    });
-
-    $(document).on('click', '#edit-item-close, #edit-item-cancel', function () {
-        $('#edit-item-overlay').hide();
-    });
-
-    $(document).on('click', '#edit-item-overlay', function (e) {
-        if (e.target.id === 'edit-item-overlay') {
-            $('#edit-item-overlay').hide();
-        }
-    });
-
-    $(document).on('click', '#edit-item-save', function () {
-        var $btn = $(this);
-        var cartId = $('#edit-item-overlay').data('cart-id');
-        var requiredMissing = false;
-
-        var data = {
-            action: 'ajax_save_edit',
-            cart_id: cartId,
-            customization: $('#edit-item-customization').val()
-        };
-
-        $('#edit-item-body select').each(function () {
-            var match = $(this).attr('name').match(/options\[(\d+)\]/);
-            if (!match) return;
-            if ($(this).prop('required') && !$(this).val()) {
-                requiredMissing = true;
-            }
-            data['options[' + match[1] + ']'] = $(this).val();
-        });
-
-        if (requiredMissing) {
-            alert('Please select an option for all required fields.');
-            return;
-        }
-
-        $btn.prop('disabled', true).text('Saving...');
-
-        $.ajax({
-            url: 'cart.php',
-            type: 'POST',
-            data: data,
-            dataType: 'json',
-            success: function (response) {
-                if (response.success) {
-                    window.location.reload();
-                } else {
-                    alert(response.message || 'Could not save changes.');
-                    $btn.prop('disabled', false).text('Save Changes');
-                }
-            },
-            error: function () {
-                alert('An error occurred while saving changes.');
-                $btn.prop('disabled', false).text('Save Changes');
             }
         });
     });

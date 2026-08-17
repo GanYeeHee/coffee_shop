@@ -41,6 +41,27 @@ if (!$product) {
     exit;
 }
 
+// If arriving from the cart's "Edit" link, pre-fill the form with that cart item's current
+// selections instead of starting a fresh "Add to Cart" (only when it's this member's own item).
+$edit_cart_id = 0;
+$edit_customization = '';
+$edit_quantity = 1;
+$edit_selected_ids = [];
+
+if (isset($_GET['edit_cart_id']) && is_logged_in()) {
+    $candidate_id = intval($_GET['edit_cart_id']);
+    $edit_stmt = $pdo->prepare("SELECT id, quantity, customization, option_signature FROM cart WHERE id = ? AND user_id = ? AND product_id = ?");
+    $edit_stmt->execute([$candidate_id, $_SESSION['user_id'], $id]);
+    $edit_item = $edit_stmt->fetch();
+
+    if ($edit_item) {
+        $edit_cart_id = $edit_item['id'];
+        $edit_customization = $edit_item['customization'];
+        $edit_quantity = $edit_item['quantity'];
+        $edit_selected_ids = $edit_item['option_signature'] !== '' ? explode(',', $edit_item['option_signature']) : [];
+    }
+}
+
 // Rating summary + review list
 $rating_stmt = $pdo->prepare("SELECT AVG(rating) as avg_rating, COUNT(*) as review_count FROM reviews WHERE product_id = ?");
 $rating_stmt->execute([$id]);
@@ -122,35 +143,45 @@ unset($_SESSION['flash_error']);
         </div>
 
         <?php if (!is_admin()): ?>
+            <?php if ($edit_cart_id): ?>
+                <div class="alert alert-warning">Editing an item already in your cart. <a href="cart.php">Cancel</a></div>
+            <?php endif; ?>
             <form action="cart.php" method="POST" class="detail-action-form">
-                <input type="hidden" name="action" value="add">
+                <input type="hidden" name="action" value="<?= $edit_cart_id ? 'edit' : 'add' ?>">
                 <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
-                
+                <?php if ($edit_cart_id): ?>
+                    <input type="hidden" name="edit_cart_id" value="<?= $edit_cart_id ?>">
+                <?php endif; ?>
+
                 <?php if ($product['stock'] > 0): ?>
                     <?php foreach ($option_groups as $group): ?>
                         <?php
                         $value_options = $group['is_required'] ? ['' => '-- Select --'] : ['' => 'None'];
+                        $selected_value = '';
                         foreach ($group['values'] as $value) {
                             $option_label = $value['price_delta'] > 0
                                 ? $value['label'] . ' (+RM' . number_format($value['price_delta'], 2) . ')'
                                 : $value['label'];
                             $value_options[$value['id']] = $option_label;
+                            if (in_array((string)$value['id'], $edit_selected_ids, true)) {
+                                $selected_value = $value['id'];
+                            }
                         }
                         ?>
-                        <?= html_select("options[{$group['id']}]", $value_options, '', $group['name'] . ($group['is_required'] ? ' *' : ''), [], $group['is_required'] ? ['required' => 'required'] : []) ?>
+                        <?= html_select("options[{$group['id']}]", $value_options, $selected_value, $group['name'] . ($group['is_required'] ? ' *' : ''), [], $group['is_required'] ? ['required' => 'required'] : []) ?>
                     <?php endforeach; ?>
 
                     <div class="form-group">
                         <label for="field-customization">Customization (Optional)</label>
-                        <input type="text" name="customization" id="field-customization" class="form-control" placeholder="e.g. Oat milk, Extra shot, Less ice">
+                        <input type="text" name="customization" id="field-customization" class="form-control" value="<?= htmlspecialchars($edit_customization) ?>" placeholder="e.g. Oat milk, Extra shot, Less ice">
                     </div>
 
                     <div class="quantity-picker">
                         <label for="quantity">Quantity:</label>
-                        <input type="number" name="quantity" id="field-quantity" class="form-control" value="1" min="1" max="<?= $product['stock'] ?>" required>
+                        <input type="number" name="quantity" id="field-quantity" class="form-control" value="<?= $edit_quantity ?>" min="1" max="<?= $product['stock'] ?>" required>
                     </div>
 
-                    <button type="submit" class="btn btn-accent btn-block">Add to Shopping Cart</button>
+                    <button type="submit" class="btn btn-accent btn-block"><?= $edit_cart_id ? 'Update Cart Item' : 'Add to Shopping Cart' ?></button>
                 <?php else: ?>
                     <div class="alert alert-danger" style="margin-top: 1rem; border-left: none; text-align: center;">
                         This item is currently out of stock and cannot be ordered.

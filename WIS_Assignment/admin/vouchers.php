@@ -159,7 +159,7 @@ unset($_SESSION['flash_error']);
                             <tr style="<?= ($id === $v['id']) ? 'background-color: #FAF6F0;' : '' ?>">
                                 <td><strong><?= htmlspecialchars($v['code']) ?></strong></td>
                                 <td><?= number_format($v['discount_percent'], 2) ?>%</td>
-                                <td>$<?= number_format($v['min_spend'], 2) ?></td>
+                                <td>RM<?= number_format($v['min_spend'], 2) ?></td>
                                 <td>
                                     <span class="badge badge-<?= $v['status'] === 'active' ? 'active' : 'blocked' ?>">
                                         <?= htmlspecialchars(ucfirst($v['status'])) ?>
@@ -187,7 +187,7 @@ unset($_SESSION['flash_error']);
 
                 <?= html_input('text', 'code', $code, 'Voucher Code', 'e.g. COFFEE10', $errors, ['maxlength' => '20']) ?>
                 <?= html_input('text', 'discount_percent', $discount_percent, 'Discount Percent (%)', 'e.g. 10', $errors) ?>
-                <?= html_input('text', 'min_spend', $min_spend, 'Minimum Spend ($)', 'e.g. 10.00', $errors) ?>
+                <?= html_input('text', 'min_spend', $min_spend, 'Minimum Spend (RM)', 'e.g. 10.00', $errors) ?>
                 <?= html_select('status', $status_options, $status, 'Status', $errors) ?>
 
                 <button type="submit" class="btn btn-accent btn-block" style="margin-top: 1rem;">Create Voucher</button>
@@ -202,7 +202,7 @@ unset($_SESSION['flash_error']);
 
                 <?= html_input('text', 'code', $code, 'Voucher Code', 'Update voucher code', $errors, ['maxlength' => '20']) ?>
                 <?= html_input('text', 'discount_percent', $discount_percent, 'Discount Percent (%)', 'e.g. 10', $errors) ?>
-                <?= html_input('text', 'min_spend', $min_spend, 'Minimum Spend ($)', 'e.g. 10.00', $errors) ?>
+                <?= html_input('text', 'min_spend', $min_spend, 'Minimum Spend (RM)', 'e.g. 10.00', $errors) ?>
                 <?= html_select('status', $status_options, $status, 'Status', $errors) ?>
 
                 <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">Save Changes</button>
