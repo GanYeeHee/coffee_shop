@@ -32,7 +32,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'validate_voucher') {
         exit;
     }
     if ($subtotal < $voucher['min_spend']) {
-        echo json_encode(['success' => false, 'message' => 'Minimum spend of $' . number_format($voucher['min_spend'], 2) . ' required.']);
+        echo json_encode(['success' => false, 'message' => 'Minimum spend of RM' . number_format($voucher['min_spend'], 2) . ' required.']);
         exit;
     }
 
@@ -183,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$voucher) {
             $errors['voucher_code'] = "Invalid or inactive voucher code.";
         } elseif ($grand_total < $voucher['min_spend']) {
-            $errors['voucher_code'] = "Minimum spend of $" . number_format($voucher['min_spend'], 2) . " required for this voucher.";
+            $errors['voucher_code'] = "Minimum spend of RM" . number_format($voucher['min_spend'], 2) . " required for this voucher.";
         } else {
             $voucher_id = $voucher['id'];
             $discount_amount = round($grand_total * $voucher['discount_percent'] / 100, 2);
