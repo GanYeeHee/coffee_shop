@@ -42,7 +42,7 @@ if (is_logged_in() && is_member() && isset($pdo)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Daily Grind - Online Coffee Shop</title>
+    <title>TAR Coffee - Online Coffee Shop</title>
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="<?= $base_path ?>assets/css/style.css">
@@ -54,7 +54,7 @@ if (is_logged_in() && is_member() && isset($pdo)) {
         <div class="logo">
             <a href="<?= $base_path ?>index.php">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-5z"/><path d="M17 11.5h1.2a2.3 2.3 0 0 1 0 4.6H17"/><path d="M9 5c-.5.8-.5 1.3 0 2.1M13 5c-.5.8-.5 1.3 0 2.1" stroke-width="1.2"/></svg>
-                The Daily <em>Grind</em>
+                TAR C<em>offee</em>
             </a>
         </div>
         

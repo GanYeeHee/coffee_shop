@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 
 <div class="auth-container" style="max-width: 600px;">
-    <h2>Join The Daily Grind</h2>
+    <h2>Join TAR Coffee</h2>
     
     <?php if (isset($errors['general'])): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($errors['general']) ?></div>

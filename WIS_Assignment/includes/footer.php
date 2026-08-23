@@ -6,7 +6,7 @@
             <div class="logo">
                 <a href="<?= $base_path ?>index.php">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M6 10h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-5z"/><path d="M17 11.5h1.2a2.3 2.3 0 0 1 0 4.6H17"/></svg>
-                    The Daily <em>Grind</em>
+                    TAR C<em>offee</em>
                 </a>
             </div>
             <p>A small roastery and coffee shop. Beans roasted weekly, brewed every day.</p>
@@ -40,7 +40,7 @@
         </div>
     </div>
     <div class="footer-base">
-        <span>&copy; <?= date('Y') ?> The Daily Grind. All rights reserved.</span>
+        <span>&copy; <?= date('Y') ?> TAR Coffee. All rights reserved.</span>
     </div>
 </footer>
 

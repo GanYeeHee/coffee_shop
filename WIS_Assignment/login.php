@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
     
     <div class="auth-footer">
-        New to The Daily Grind? <a href="register.php">Create an account</a>.
+        New to TAR Coffee? <a href="register.php">Create an account</a>.
     </div>
 </div>
 

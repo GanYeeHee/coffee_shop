@@ -93,13 +93,13 @@ header.nav-transparent:not(.solid) {
     color: var(--bg-cream);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
 }
 
 .logo a svg {
     width: 26px;
     height: 26px;
     flex-shrink: 0;
+    margin-right: 0.5rem;
     color: var(--gold-soft);
 }
 

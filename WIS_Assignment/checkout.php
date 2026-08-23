@@ -271,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $mail = get_mail();
                 $mail->addAddress($current_user['email'] ?? '', $current_user['full_name'] ?? '');
-                $mail->Subject = "Order Confirmation #{$order_id} - The Daily Grind";
+                $mail->Subject = "Order Confirmation #{$order_id} - TAR Coffee";
                 $mail->isHTML(true);
 
                 // Brand tokens (mirrors assets/css/style.css :root, since email clients can't read external CSS)
@@ -338,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <!-- Header: wordmark + status pill -->
                             <tr><td style="padding:28px 32px 0 32px;">
                                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-                                    <td style="font-family:{$f_display};font-size:20px;font-weight:700;color:{$c_ink};">&#9749; The Daily Grind</td>
+                                    <td style="font-family:{$f_display};font-size:20px;font-weight:700;color:{$c_ink};">&#9749; TAR Coffee</td>
                                     <td align="right"><span style="display:inline-block;background-color:{$c_success};color:#ffffff;font-family:{$f_body};font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;">Confirmed</span></td>
                                 </tr></table>
                             </td></tr>
@@ -383,7 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <!-- Footer -->
                             <tr><td style="padding:20px 32px;background-color:{$c_canvas};margin-top:20px;">
-                                <p style="margin:0;font-family:{$f_display};font-size:15px;font-weight:700;color:#FAF6F0;">&#9749; The Daily Grind</p>
+                                <p style="margin:0;font-family:{$f_display};font-size:15px;font-weight:700;color:#FAF6F0;">&#9749; TAR Coffee</p>
                                 <p style="margin:6px 0 0 0;font-family:{$f_body};font-size:12px;color:#C9B8AF;">Questions about your order? Just reply to this email.</p>
                             </td></tr>
 
