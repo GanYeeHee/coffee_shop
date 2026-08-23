@@ -10,31 +10,40 @@ $cat_id = isset($_GET['cat_id']) ? intval($_GET['cat_id']) : 0;
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 
 // Build the product query
+$where = [];
+$params = [];
+
+if ($cat_id > 0) {
+    $where[] = "p.category_id = ?";
+    $params[] = $cat_id;
+}
+
+if ($search !== '') {
+    $where[] = "(p.name LIKE ? OR p.description LIKE ?)";
+    $params[] = '%' . $search . '%';
+    $params[] = '%' . $search . '%';
+}
+
+$where_sql = $where ? (" WHERE " . implode(" AND ", $where)) : "";
+
+$count_sql = "SELECT COUNT(*) FROM products p LEFT JOIN categories c ON p.category_id = c.id" . $where_sql;
+$per_page = 12;
+$pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
 $sql = "SELECT p.*, c.name as category_name,
         (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image,
         (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) as avg_rating,
         (SELECT COUNT(*) FROM reviews WHERE product_id = p.id) as review_count,
         EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id AND is_required = 1) as has_required_options
         FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE 1=1";
-$params = [];
-
-if ($cat_id > 0) {
-    $sql .= " AND p.category_id = ?";
-    $params[] = $cat_id;
-}
-
-if ($search !== '') {
-    $sql .= " AND (p.name LIKE ? OR p.description LIKE ?)";
-    $params[] = '%' . $search . '%';
-    $params[] = '%' . $search . '%';
-}
-
-$sql .= " ORDER BY p.id DESC";
+        LEFT JOIN categories c ON p.category_id = c.id"
+        . $where_sql
+        . " ORDER BY p.id DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
 $prod_stmt = $pdo->prepare($sql);
 $prod_stmt->execute($params);
 $products = $prod_stmt->fetchAll();
+
+$pager_params = array_filter(['cat_id' => $cat_id > 0 ? $cat_id : null, 'q' => $search !== '' ? $search : null]);
 ?>
 
 <!-- Hero Banner Section -->
@@ -164,6 +173,7 @@ $products = $prod_stmt->fetchAll();
                     </article>
                 <?php endforeach; ?>
             </div>
+            <?= render_pagination($pg, 'index.php', $pager_params) ?>
         <?php endif; ?>
     </section>
 </div>

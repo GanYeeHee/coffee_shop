@@ -100,7 +100,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Fetch all orders for this user
-$stmt = $pdo->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC");
+$per_page = 10;
+$pg = paginate_query($pdo, "SELECT COUNT(*) FROM orders WHERE user_id = ?", [$user_id], $per_page);
+
+$stmt = $pdo->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset']);
 $stmt->execute([$user_id]);
 $orders = $stmt->fetchAll();
 
@@ -214,8 +217,9 @@ if ($expand_order && $expand_order['status'] === 'Completed' && !empty($expand_i
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'orders.php', []) ?>
         </section>
-        
+
         <!-- Expanded Order Receipt details -->
         <?php if ($expand_order): ?>
             <section class="admin-panel dialog-container" style="margin-top: 0;">

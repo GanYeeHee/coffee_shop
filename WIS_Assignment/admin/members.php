@@ -6,6 +6,8 @@ require_admin();
 
 $errors = [];
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
+$base_params = array_filter(['q' => $search !== '' ? $search : null]);
+$base_qs = http_build_query($base_params);
 
 // Handle Block / Unblock Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -48,23 +50,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
     
-    header("Location: members.php" . ($search !== '' ? '?q=' . urlencode($search) : ''));
+    header("Location: members.php" . ($base_qs !== '' ? '?' . $base_qs : ''));
     exit;
 }
 
 // Build Search Query for Users
-$sql = "SELECT * FROM users WHERE 1=1";
+$where = [];
 $params = [];
 
 if ($search !== '') {
-    $sql .= " AND (username LIKE ? OR email LIKE ? OR full_name LIKE ? OR phone LIKE ?)";
+    $where[] = "(username LIKE ? OR email LIKE ? OR full_name LIKE ? OR phone LIKE ?)";
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
 }
 
-$sql .= " ORDER BY role ASC, id DESC";
+$count_sql = "SELECT COUNT(*) FROM users";
+if (!empty($where)) {
+    $count_sql .= " WHERE " . implode(" AND ", $where);
+}
+$per_page = 20;
+$pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
+$sql = "SELECT * FROM users";
+if (!empty($where)) {
+    $sql .= " WHERE " . implode(" AND ", $where);
+}
+$sql .= " ORDER BY role ASC, id DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
@@ -180,9 +193,10 @@ unset($_SESSION['flash_error']);
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'members.php', $base_params) ?>
         <?php endif; ?>
     </section>
-    
+
     <!-- Right Column: User Details Card -->
     <?php if ($expand_user): ?>
         <section class="admin-panel dialog-container" style="margin-top: 0; text-align: center;">

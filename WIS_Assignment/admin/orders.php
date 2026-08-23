@@ -109,7 +109,14 @@ if (!empty($where)) {
     $sql .= " WHERE " . implode(" AND ", $where);
 }
 
-$sql .= " ORDER BY o.order_date DESC";
+$count_sql = "SELECT COUNT(*) FROM orders o LEFT JOIN users u ON o.user_id = u.id";
+if (!empty($where)) {
+    $count_sql .= " WHERE " . implode(" AND ", $where);
+}
+$per_page = 20;
+$pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
+$sql .= " ORDER BY o.order_date DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $orders = $stmt->fetchAll();
@@ -261,6 +268,7 @@ unset($_SESSION['flash_error']);
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'orders.php', $base_params) ?>
         <?php endif; ?>
     </section>
 

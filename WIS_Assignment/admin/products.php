@@ -300,11 +300,23 @@ if (!empty($where)) {
     $sql .= " WHERE " . implode(" AND ", $where);
 }
 
-$sql .= " ORDER BY p.id DESC";
+$count_sql = "SELECT COUNT(*) FROM products p LEFT JOIN categories c ON p.category_id = c.id";
+if (!empty($where)) {
+    $count_sql .= " WHERE " . implode(" AND ", $where);
+}
+$per_page = 20;
+$pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
+$sql .= " ORDER BY p.id DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
 $prod_stmt = $pdo->prepare($sql);
 $prod_stmt->execute($params);
 $all_products = $prod_stmt->fetchAll();
 $has_active_filters = ($search !== '' || $filter_category > 0 || $filter_status !== '');
+$pager_params = array_filter([
+    'q' => $search !== '' ? $search : null,
+    'category' => $filter_category > 0 ? $filter_category : null,
+    'status' => $filter_status !== '' ? $filter_status : null,
+]);
 
 // Flash Messages
 $flash_success = $_SESSION['flash_success'] ?? null;
@@ -416,6 +428,7 @@ unset($_SESSION['flash_error']);
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'products.php', $pager_params) ?>
         <?php endif; ?>
     </div>
 

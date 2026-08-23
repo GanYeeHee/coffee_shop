@@ -72,6 +72,7 @@ if (is_logged_in() && is_member() && isset($pdo)) {
                     <li class="nav-item"><a href="<?= $base_path ?>admin/vouchers.php" class="<?= trim(nav_active('vouchers.php', true, $current_page, $is_admin_dir)) ?>">Vouchers</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/members.php" class="<?= trim(nav_active('members.php', true, $current_page, $is_admin_dir)) ?>">Members</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/orders.php" class="<?= trim(nav_active('orders.php', true, $current_page, $is_admin_dir)) ?>">Orders</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/reports.php" class="<?= trim(nav_active('reports.php', true, $current_page, $is_admin_dir)) ?>">Reports</a></li>
                 <?php elseif (is_member()): ?>
                     <!-- Member specific links -->
                     <li class="nav-item"><a href="<?= $base_path ?>orders.php" class="<?= trim(nav_active('orders.php', false, $current_page, $is_admin_dir)) ?>">My Orders</a></li>

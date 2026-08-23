@@ -100,7 +100,89 @@ function html_select($name, $options = [], $selected_value = '', $label = '', $e
     $html .= '</select>';
     $html .= html_error($errors, $name);
     $html .= '</div>';
-    
+
+    return $html;
+}
+
+/**
+ * Resolve and clamp the current page number from $_GET['page'].
+ * Non-numeric, negative, zero, or missing -> 1.
+ */
+function paginate_current_page() {
+    $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT);
+    if ($page === false || $page === null || $page < 1) {
+        return 1;
+    }
+    return $page;
+}
+
+/**
+ * Run a COUNT(*) query (same WHERE/params as the list query, no LIMIT/OFFSET)
+ * and derive the pagination window. Clamps an out-of-range requested page
+ * down to the last valid page.
+ */
+function paginate_query($pdo, $count_sql, $params, $per_page) {
+    $stmt = $pdo->prepare($count_sql);
+    $stmt->execute($params);
+    $total_rows = (int) $stmt->fetchColumn();
+
+    $total_pages = max(1, (int) ceil($total_rows / $per_page));
+    $page = min(paginate_current_page(), $total_pages);
+    $offset = ($page - 1) * $per_page;
+
+    return [
+        'page' => $page,
+        'per_page' => $per_page,
+        'offset' => $offset,
+        'total_rows' => $total_rows,
+        'total_pages' => $total_pages,
+    ];
+}
+
+/**
+ * Render a prev/next + windowed page-number pager as an HTML string.
+ * $query_params should contain the active filters WITHOUT 'page'.
+ * Returns '' when there's only one page.
+ */
+function render_pagination($pg, $base_url, $query_params = []) {
+    if ($pg['total_pages'] <= 1) {
+        return '';
+    }
+    $page = $pg['page'];
+    $total = $pg['total_pages'];
+
+    $link = function ($p) use ($base_url, $query_params) {
+        $qp = $query_params;
+        $qp['page'] = $p;
+        return htmlspecialchars($base_url . '?' . http_build_query($qp));
+    };
+
+    $html = '<nav class="pagination" aria-label="Pagination">';
+    $html .= $page > 1
+        ? '<a href="' . $link($page - 1) . '" class="btn btn-secondary btn-sm">&laquo; Prev</a>'
+        : '<span class="btn btn-secondary btn-sm disabled">&laquo; Prev</span>';
+
+    $window = 2;
+    $start = max(1, $page - $window);
+    $end = min($total, $page + $window);
+
+    if ($start > 1) {
+        $html .= '<a href="' . $link(1) . '" class="btn btn-sm">1</a>';
+        if ($start > 2) $html .= '<span class="pagination-ellipsis">&hellip;</span>';
+    }
+    for ($p = $start; $p <= $end; $p++) {
+        $cls = $p === $page ? 'btn btn-sm btn-accent' : 'btn btn-sm btn-secondary';
+        $html .= '<a href="' . $link($p) . '" class="' . $cls . '">' . $p . '</a>';
+    }
+    if ($end < $total) {
+        if ($end < $total - 1) $html .= '<span class="pagination-ellipsis">&hellip;</span>';
+        $html .= '<a href="' . $link($total) . '" class="btn btn-sm">' . $total . '</a>';
+    }
+
+    $html .= $page < $total
+        ? '<a href="' . $link($page + 1) . '" class="btn btn-secondary btn-sm">Next &raquo;</a>'
+        : '<span class="btn btn-secondary btn-sm disabled">Next &raquo;</span>';
+    $html .= '</nav>';
     return $html;
 }
 ?>

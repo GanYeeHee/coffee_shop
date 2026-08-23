@@ -627,6 +627,24 @@ select.form-control:focus {
     width: 100%;
 }
 
+.pagination {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+}
+
+.pagination .disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.pagination-ellipsis {
+    padding: 0 0.3rem;
+    color: var(--text-muted);
+}
+
 .btn:disabled,
 .btn[disabled] {
     cursor: not-allowed;

@@ -48,6 +48,7 @@ $recent_orders = $recent_orders_stmt->fetchAll();
         <div class="stat-card">
             <span class="title">Total Revenue</span>
             <span class="value" style="color: var(--success);">RM<?= number_format($total_sales, 2) ?></span>
+            <a href="reports.php" style="font-size: 0.8rem; font-weight: 600;">View Full Report &rarr;</a>
         </div>
         <div class="stat-card">
             <span class="title">Total Orders</span>
