@@ -131,9 +131,9 @@ $recent_orders = $recent_orders_stmt->fetchAll();
                                     </td>
                                     <td style="text-align: right;">
                                         <?php if ($item['stock'] == 0): ?>
-                                            <span class="badge badge-cancelled" style="font-size: 0.7rem;">Sold Out</span>
+                                            <span class="stock-badge inline out-of-stock">Sold Out</span>
                                         <?php else: ?>
-                                            <span class="badge badge-pending" style="font-size: 0.7rem;"><?= $item['stock'] ?> Left</span>
+                                            <span class="stock-badge inline low-stock"><?= $item['stock'] ?> Left</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>

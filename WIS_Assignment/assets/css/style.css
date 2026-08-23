@@ -502,6 +502,46 @@ select.form-control:focus {
     border-color: var(--accent);
 }
 
+.password-field {
+    position: relative;
+}
+
+.password-field .form-control {
+    padding-right: 2.4rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.password-toggle:hover {
+    color: var(--text-main);
+}
+
+.password-toggle .icon-eye-off {
+    display: none;
+}
+
+.password-toggle.is-visible .icon-eye {
+    display: none;
+}
+
+.password-toggle.is-visible .icon-eye-off {
+    display: block;
+}
+
 .input-error {
     border-color: var(--danger) !important;
 }
@@ -670,6 +710,7 @@ select.form-control:focus {
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.04em;
+    white-space: nowrap;
     border-radius: 0;
     text-transform: uppercase;
     background-color: rgba(251, 250, 247, 0.92);
@@ -1114,6 +1155,29 @@ table.table tr:nth-child(even) {
 .inline-field-group {
     display: flex;
     gap: 0.5rem;
+}
+
+/* Filter/search bars: .form-control defaults to width:100% for its usual
+   block-level .form-group context, which fights a flex row and forces each
+   control onto its own full-width line. Reset it back to content-sized here. */
+.filter-bar {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-bar .form-control {
+    width: auto;
+}
+
+.filter-bar input[type="text"],
+.filter-bar input[type="search"] {
+    width: 200px;
+}
+
+.filter-bar select.form-control {
+    min-width: 160px;
 }
 
 .field-row-2 {

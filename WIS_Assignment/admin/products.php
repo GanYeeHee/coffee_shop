@@ -340,17 +340,17 @@ unset($_SESSION['flash_error']);
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
             <h3>Product Inventory</h3>
 
-            <form action="products.php" method="GET" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                <input type="text" name="q" class="form-control" placeholder="Search products..." value="<?= htmlspecialchars($search) ?>" style="padding: 0.5rem; width: 200px;">
+            <form action="products.php" method="GET" class="filter-bar">
+                <input type="text" name="q" class="form-control" placeholder="Search products..." value="<?= htmlspecialchars($search) ?>">
 
-                <select name="category" class="form-control" style="padding: 0.5rem;">
+                <select name="category" class="form-control">
                     <option value="0">All Categories</option>
                     <?php foreach ($categories as $cat): ?>
                         <option value="<?= $cat['id'] ?>" <?= $filter_category == $cat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
 
-                <select name="status" class="form-control" style="padding: 0.5rem;">
+                <select name="status" class="form-control">
                     <option value="">All Status</option>
                     <option value="in_stock" <?= $filter_status === 'in_stock' ? 'selected' : '' ?>>In Stock</option>
                     <option value="low_stock" <?= $filter_status === 'low_stock' ? 'selected' : '' ?>>Low Stock</option>
