@@ -354,7 +354,7 @@ $flash_error = $_SESSION['flash_error'] ?? null;
 unset($_SESSION['flash_error']);
 ?>
 
-<h1 style="margin-bottom: 2rem;">Shopping Cart</h1>
+<h1 class="page-title">Shopping Cart</h1>
 
 <?php if ($flash_success): ?>
     <div class="alert alert-success"><?= htmlspecialchars($flash_success) ?></div>
@@ -365,7 +365,7 @@ unset($_SESSION['flash_error']);
 <?php endif; ?>
 
 <?php if (empty($cart_items)): ?>
-    <div class="alert alert-warning" style="text-align: center; padding: 3rem;">
+    <div class="alert alert-info" style="text-align: center; padding: 3rem;">
         <div style="font-size: 4rem; margin-bottom: 1rem;">🛒</div>
         <p style="font-size: 1.2rem; margin-bottom: 1.5rem;">Your shopping cart is empty.</p>
         <a href="index.php" class="btn btn-accent">Browse Coffee Menu</a>
@@ -401,7 +401,7 @@ unset($_SESSION['flash_error']);
                                     <div class="img-thumbnail" style="background-color: var(--primary-light); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">☕</div>
                                 <?php endif; ?>
                                 <div>
-                                    <h4 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.05rem;">
+                                    <h4 style="margin: 0; font-family: 'Jost', sans-serif; font-size: 1.05rem;">
                                         <a href="product_detail.php?id=<?= $item['id'] ?>"><?= htmlspecialchars($item['name']) ?></a>
                                     </h4>
                                     <span style="font-size: 0.8rem; color: var(--text-muted);"><?= htmlspecialchars($item['category_name'] ?? 'Uncategorized') ?></span>

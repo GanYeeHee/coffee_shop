@@ -300,11 +300,23 @@ if (!empty($where)) {
     $sql .= " WHERE " . implode(" AND ", $where);
 }
 
-$sql .= " ORDER BY p.id DESC";
+$count_sql = "SELECT COUNT(*) FROM products p LEFT JOIN categories c ON p.category_id = c.id";
+if (!empty($where)) {
+    $count_sql .= " WHERE " . implode(" AND ", $where);
+}
+$per_page = 20;
+$pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
+$sql .= " ORDER BY p.id DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
 $prod_stmt = $pdo->prepare($sql);
 $prod_stmt->execute($params);
 $all_products = $prod_stmt->fetchAll();
 $has_active_filters = ($search !== '' || $filter_category > 0 || $filter_status !== '');
+$pager_params = array_filter([
+    'q' => $search !== '' ? $search : null,
+    'category' => $filter_category > 0 ? $filter_category : null,
+    'status' => $filter_status !== '' ? $filter_status : null,
+]);
 
 // Flash Messages
 $flash_success = $_SESSION['flash_success'] ?? null;
@@ -340,17 +352,17 @@ unset($_SESSION['flash_error']);
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
             <h3>Product Inventory</h3>
 
-            <form action="products.php" method="GET" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                <input type="text" name="q" class="form-control" placeholder="Search products..." value="<?= htmlspecialchars($search) ?>" style="padding: 0.5rem; width: 200px;">
+            <form action="products.php" method="GET" class="filter-bar">
+                <input type="text" name="q" class="form-control" placeholder="Search products..." value="<?= htmlspecialchars($search) ?>">
 
-                <select name="category" class="form-control" style="padding: 0.5rem;">
+                <select name="category" class="form-control">
                     <option value="0">All Categories</option>
                     <?php foreach ($categories as $cat): ?>
                         <option value="<?= $cat['id'] ?>" <?= $filter_category == $cat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
 
-                <select name="status" class="form-control" style="padding: 0.5rem;">
+                <select name="status" class="form-control">
                     <option value="">All Status</option>
                     <option value="in_stock" <?= $filter_status === 'in_stock' ? 'selected' : '' ?>>In Stock</option>
                     <option value="low_stock" <?= $filter_status === 'low_stock' ? 'selected' : '' ?>>Low Stock</option>
@@ -399,16 +411,16 @@ unset($_SESSION['flash_error']);
                                 <td><?= $p['stock'] ?></td>
                                 <td>
                                     <?php if ($p['stock'] == 0): ?>
-                                        <span class="badge badge-cancelled">Sold Out</span>
+                                        <span class="stock-badge inline out-of-stock">Sold Out</span>
                                     <?php elseif ($p['stock'] <= 5): ?>
-                                        <span class="badge badge-pending">Low Stock</span>
+                                        <span class="stock-badge inline low-stock">Low Stock</span>
                                     <?php else: ?>
-                                        <span class="badge badge-active">In Stock</span>
+                                        <span class="stock-badge inline in-stock">In Stock</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Edit</a>
-                                    <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Options</a>
+                                    <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
+                                    <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Options</a>
                                     <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete product '<?= htmlspecialchars($p['name']) ?>'? This will permanently delete the item and all its image files from storage.">Delete</a>
                                 </td>
                             </tr>
@@ -416,6 +428,7 @@ unset($_SESSION['flash_error']);
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'products.php', $pager_params) ?>
         <?php endif; ?>
     </div>
 
@@ -490,14 +503,14 @@ unset($_SESSION['flash_error']);
                                 <input type="hidden" name="action" value="set_primary">
                                 <input type="hidden" name="image_id" value="<?= $img['id'] ?>">
                                 <input type="hidden" name="product_id" value="<?= $id ?>">
-                                <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Set Primary</button>
+                                <button type="submit" class="btn btn-secondary btn-sm btn-xs">Set Primary</button>
                             </form>
                         <?php endif; ?>
                         <form method="POST" style="margin-top: 0.3rem;">
                             <input type="hidden" name="action" value="delete_image">
                             <input type="hidden" name="image_id" value="<?= $img['id'] ?>">
                             <input type="hidden" name="product_id" value="<?= $id ?>">
-                            <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Delete this photo?" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Delete</button>
+                            <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Delete this photo?">Delete</button>
                         </form>
                     </div>
                 <?php endforeach; ?>

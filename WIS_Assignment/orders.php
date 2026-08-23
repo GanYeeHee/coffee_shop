@@ -100,7 +100,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Fetch all orders for this user
-$stmt = $pdo->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC");
+$per_page = 10;
+$pg = paginate_query($pdo, "SELECT COUNT(*) FROM orders WHERE user_id = ?", [$user_id], $per_page);
+
+$stmt = $pdo->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset']);
 $stmt->execute([$user_id]);
 $orders = $stmt->fetchAll();
 
@@ -153,7 +156,7 @@ if ($expand_order && $expand_order['status'] === 'Completed' && !empty($expand_i
 }
 ?>
 
-<h1 style="margin-bottom: 2rem;">Order History</h1>
+<h1 class="page-title">Order History</h1>
 
 <?php if ($flash_success): ?>
     <div class="alert alert-success"><?= htmlspecialchars($flash_success) ?></div>
@@ -164,14 +167,14 @@ if ($expand_order && $expand_order['status'] === 'Completed' && !empty($expand_i
 <?php endif; ?>
 
 <?php if (empty($orders)): ?>
-    <div class="alert alert-warning" style="text-align: center; padding: 3rem;">
+    <div class="alert alert-info" style="text-align: center; padding: 3rem;">
         <p style="font-size: 1.1rem; margin-bottom: 1rem;">You have not placed any orders yet.</p>
         <a href="index.php" class="btn btn-accent">Order Your First Coffee</a>
     </div>
 <?php else: ?>
     
     <!-- Split Layout if Details are Open -->
-    <div style="display: grid; grid-template-columns: <?= ($expand_order) ? '1.1fr 1fr' : '1fr' ?>; gap: 2.5rem; align-items: start;">
+    <div class="list-detail-columns" style="grid-template-columns: <?= ($expand_order) ? '1.5fr 1fr' : '1fr' ?>;">
         
         <!-- Orders List Table -->
         <section class="admin-panel">
@@ -214,8 +217,9 @@ if ($expand_order && $expand_order['status'] === 'Completed' && !empty($expand_i
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'orders.php', []) ?>
         </section>
-        
+
         <!-- Expanded Order Receipt details -->
         <?php if ($expand_order): ?>
             <section class="admin-panel dialog-container" style="margin-top: 0;">

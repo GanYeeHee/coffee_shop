@@ -10,7 +10,7 @@ define('SMTP_HOST', 'smtp.gmail.com');
 define('SMTP_PORT', 587);
 define('SMTP_USERNAME', 'coffeeshopadminacc@gmail.com');
 define('SMTP_PASSWORD', 'hegt rdvj lsjz kqhk');
-define('SMTP_FROM_NAME', 'The Daily Grind');
+define('SMTP_FROM_NAME', 'TAR Coffee');
 
 /**
  * Returns a configured but unsent PHPMailer instance.

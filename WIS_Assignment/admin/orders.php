@@ -6,6 +6,19 @@ require_admin();
 
 $errors = [];
 $filter_status = $_GET['status'] ?? 'All';
+$search = isset($_GET['q']) ? trim($_GET['q']) : '';
+$date_from = $_GET['date_from'] ?? '';
+$date_to = $_GET['date_to'] ?? '';
+
+// Reusable query string that preserves the active filters across action links/forms
+$base_params = array_filter([
+    'status' => $filter_status !== 'All' ? $filter_status : null,
+    'q' => $search !== '' ? $search : null,
+    'date_from' => $date_from !== '' ? $date_from : null,
+    'date_to' => $date_to !== '' ? $date_to : null,
+]);
+$base_qs = http_build_query($base_params);
+$has_active_filters = !empty($base_params);
 
 // Handle Order Status Transitions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -60,22 +73,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $_SESSION['flash_error'] = "Order not found.";
     }
     
-    header("Location: orders.php?status=" . urlencode($filter_status));
+    header("Location: orders.php?" . $base_qs);
     exit;
 }
 
 // Build list query
-$sql = "SELECT o.*, u.username 
-        FROM orders o 
+$sql = "SELECT o.*, u.username
+        FROM orders o
         LEFT JOIN users u ON o.user_id = u.id";
 $params = [];
+$where = [];
 
 if ($filter_status !== 'All') {
-    $sql .= " WHERE o.status = ?";
+    $where[] = "o.status = ?";
     $params[] = $filter_status;
 }
 
-$sql .= " ORDER BY o.order_date DESC";
+if ($search !== '') {
+    $where[] = "(CAST(o.id AS CHAR) LIKE ? OR u.email LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
+}
+
+if ($date_from !== '') {
+    $where[] = "DATE(o.order_date) >= ?";
+    $params[] = $date_from;
+}
+
+if ($date_to !== '') {
+    $where[] = "DATE(o.order_date) <= ?";
+    $params[] = $date_to;
+}
+
+if (!empty($where)) {
+    $sql .= " WHERE " . implode(" AND ", $where);
+}
+
+$count_sql = "SELECT COUNT(*) FROM orders o LEFT JOIN users u ON o.user_id = u.id";
+if (!empty($where)) {
+    $count_sql .= " WHERE " . implode(" AND ", $where);
+}
+$per_page = 20;
+$pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
+$sql .= " ORDER BY o.order_date DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $orders = $stmt->fetchAll();
@@ -128,12 +169,39 @@ unset($_SESSION['flash_error']);
     <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
 <?php endif; ?>
 
+<!-- Search & Date Filter -->
+<form action="orders.php" method="GET" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem;">
+    <?php if ($filter_status !== 'All'): ?>
+        <input type="hidden" name="status" value="<?= htmlspecialchars($filter_status) ?>">
+    <?php endif; ?>
+    <input type="text" name="q" class="form-control" placeholder="Search by Order ID or member email..." value="<?= htmlspecialchars($search) ?>" style="padding: 0.5rem; width: 240px;">
+    <label style="font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem;">
+        From <input type="date" name="date_from" class="form-control" value="<?= htmlspecialchars($date_from) ?>" style="padding: 0.4rem;">
+    </label>
+    <label style="font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem;">
+        To <input type="date" name="date_to" class="form-control" value="<?= htmlspecialchars($date_to) ?>" style="padding: 0.4rem;">
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+    <?php if ($has_active_filters): ?>
+        <a href="orders.php" class="btn btn-sm" style="color: var(--text-muted);">Clear</a>
+    <?php endif; ?>
+</form>
+
 <!-- Status Filtering Navigation -->
 <div style="margin-bottom: 2rem;">
     <ul class="filter-list" style="display: flex; gap: 1rem; flex-wrap: wrap;">
         <?php foreach (['All', 'Pending', 'Processing', 'Completed', 'Cancelled'] as $status_opt): ?>
+            <?php
+                $tab_params = $base_params;
+                if ($status_opt !== 'All') {
+                    $tab_params['status'] = $status_opt;
+                } else {
+                    unset($tab_params['status']);
+                }
+                $tab_qs = http_build_query($tab_params);
+            ?>
             <li>
-                <a href="orders.php?status=<?= urlencode($status_opt) ?>" class="btn btn-secondary btn-sm <?= ($filter_status === $status_opt) ? 'btn-accent' : '' ?>" style="padding: 0.5rem 1rem; border-radius: 50px;">
+                <a href="orders.php<?= $tab_qs !== '' ? '?' . $tab_qs : '' ?>" class="btn btn-secondary btn-sm status-tab <?= ($filter_status === $status_opt) ? 'btn-accent' : '' ?>">
                     <?= $status_opt ?>
                 </a>
             </li>
@@ -141,7 +209,7 @@ unset($_SESSION['flash_error']);
     </ul>
 </div>
 
-<div style="display: grid; grid-template-columns: <?= ($expand_order) ? '1.2fr 1fr' : '1fr' ?>; gap: 2.5rem; align-items: start;">
+<div class="list-detail-columns" style="grid-template-columns: <?= ($expand_order) ? '1.5fr 1fr' : '1fr' ?>;">
     
     <!-- Left Column: Orders Registry Table -->
     <section class="admin-panel">
@@ -174,24 +242,24 @@ unset($_SESSION['flash_error']);
                                     </span>
                                 </td>
                                 <td style="display: flex; gap: 0.3rem;">
-                                    <a href="orders.php?status=<?= urlencode($filter_status) ?>&detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Details</a>
+                                    <a href="orders.php?<?= $base_qs !== '' ? $base_qs . '&' : '' ?>detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm btn-xs">Details</a>
                                     
                                     <?php if ($ord['status'] === 'Pending'): ?>
-                                        <form action="orders.php?status=<?= urlencode($filter_status) ?>" method="POST" style="margin:0;">
+                                        <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                                             <input type="hidden" name="action" value="mark_processing">
                                             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-accent btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Accept</button>
+                                            <button type="submit" class="btn btn-accent btn-sm btn-xs">Accept</button>
                                         </form>
-                                        <form action="orders.php?status=<?= urlencode($filter_status) ?>" method="POST" style="margin:0;">
+                                        <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                                             <input type="hidden" name="action" value="cancel_order">
                                             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $ord['id'] ?>? Stock will be refunded." style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Cancel</button>
+                                            <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $ord['id'] ?>? Stock will be refunded.">Cancel</button>
                                         </form>
                                     <?php elseif ($ord['status'] === 'Processing'): ?>
-                                        <form action="orders.php?status=<?= urlencode($filter_status) ?>" method="POST" style="margin:0;">
+                                        <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                                             <input type="hidden" name="action" value="mark_completed">
                                             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; background-color: var(--success);">Complete</button>
+                                            <button type="submit" class="btn btn-primary btn-sm btn-xs" style="background-color: var(--success);">Complete</button>
                                         </form>
                                     <?php endif; ?>
                                 </td>
@@ -200,6 +268,7 @@ unset($_SESSION['flash_error']);
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'orders.php', $base_params) ?>
         <?php endif; ?>
     </section>
 
@@ -208,7 +277,7 @@ unset($_SESSION['flash_error']);
         <section class="admin-panel dialog-container" style="margin-top: 0;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 0.8rem; margin-bottom: 1.5rem;">
                 <h3 style="border-bottom: none; margin: 0;">Order Receipt #<?= $expand_order['id'] ?></h3>
-                <a href="orders.php?status=<?= urlencode($filter_status) ?>" style="font-size: 1.5rem; font-weight: 700; color: var(--text-muted);">&times;</a>
+                <a href="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" style="font-size: 1.5rem; font-weight: 700; color: var(--text-muted);">&times;</a>
             </div>
             
             <div style="font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem;">
@@ -264,25 +333,25 @@ unset($_SESSION['flash_error']);
             
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                 <?php if ($expand_order['status'] === 'Pending'): ?>
-                    <form action="orders.php?status=<?= urlencode($filter_status) ?>" method="POST" style="margin:0;">
+                    <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                         <input type="hidden" name="action" value="mark_processing">
                         <input type="hidden" name="order_id" value="<?= $expand_order['id'] ?>">
                         <button type="submit" class="btn btn-accent btn-block" style="text-align: center;">Accept Order (Mark as Processing)</button>
                     </form>
-                    <form action="orders.php?status=<?= urlencode($filter_status) ?>" method="POST" style="margin:0;">
+                    <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                         <input type="hidden" name="action" value="cancel_order">
                         <input type="hidden" name="order_id" value="<?= $expand_order['id'] ?>">
                         <button type="submit" class="btn btn-danger btn-block confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $expand_order['id'] ?>? Stock will be refunded." style="text-align: center;">Cancel Order</button>
                     </form>
                 <?php elseif ($expand_order['status'] === 'Processing'): ?>
-                    <form action="orders.php?status=<?= urlencode($filter_status) ?>" method="POST" style="margin:0;">
+                    <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                         <input type="hidden" name="action" value="mark_completed">
                         <input type="hidden" name="order_id" value="<?= $expand_order['id'] ?>">
                         <button type="submit" class="btn btn-block" style="text-align: center; background-color: var(--success); color: white;">Mark as Completed</button>
                     </form>
                 <?php endif; ?>
                 
-                <a href="orders.php?status=<?= urlencode($filter_status) ?>" class="btn btn-secondary btn-block" style="text-align: center;">Close Receipt</a>
+                <a href="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" class="btn btn-secondary btn-block" style="text-align: center;">Close Receipt</a>
             </div>
         </section>
     <?php endif; ?>

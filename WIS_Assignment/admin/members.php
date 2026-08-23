@@ -6,6 +6,8 @@ require_admin();
 
 $errors = [];
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
+$base_params = array_filter(['q' => $search !== '' ? $search : null]);
+$base_qs = http_build_query($base_params);
 
 // Handle Block / Unblock Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -25,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($target_user) {
             if ($action === 'toggle_block') {
                 $new_status = ($target_user['status'] === 'active') ? 'blocked' : 'active';
-                
+
                 $upd_stmt = $pdo->prepare("UPDATE users SET status = ? WHERE id = ?");
                 try {
                     $upd_stmt->execute([$new_status, $user_id]);
@@ -34,29 +36,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 } catch (PDOException $e) {
                     $_SESSION['flash_error'] = "Failed to update user status: " . $e->getMessage();
                 }
+            } elseif ($action === 'unlock') {
+                $upd_stmt = $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?");
+                try {
+                    $upd_stmt->execute([$user_id]);
+                    $_SESSION['flash_success'] = "User '{$target_user['username']}' has been unlocked.";
+                } catch (PDOException $e) {
+                    $_SESSION['flash_error'] = "Failed to unlock user: " . $e->getMessage();
+                }
             }
         } else {
             $_SESSION['flash_error'] = "User not found.";
         }
     }
     
-    header("Location: members.php" . ($search !== '' ? '?q=' . urlencode($search) : ''));
+    header("Location: members.php" . ($base_qs !== '' ? '?' . $base_qs : ''));
     exit;
 }
 
 // Build Search Query for Users
-$sql = "SELECT * FROM users WHERE 1=1";
+$where = [];
 $params = [];
 
 if ($search !== '') {
-    $sql .= " AND (username LIKE ? OR email LIKE ? OR full_name LIKE ? OR phone LIKE ?)";
+    $where[] = "(username LIKE ? OR email LIKE ? OR full_name LIKE ? OR phone LIKE ?)";
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
     $params[] = '%' . $search . '%';
 }
 
-$sql .= " ORDER BY role ASC, id DESC";
+$count_sql = "SELECT COUNT(*) FROM users";
+if (!empty($where)) {
+    $count_sql .= " WHERE " . implode(" AND ", $where);
+}
+$per_page = 20;
+$pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
+$sql = "SELECT * FROM users";
+if (!empty($where)) {
+    $sql .= " WHERE " . implode(" AND ", $where);
+}
+$sql .= " ORDER BY role ASC, id DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
@@ -96,7 +117,7 @@ unset($_SESSION['flash_error']);
     <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
 <?php endif; ?>
 
-<div style="display: grid; grid-template-columns: <?= ($expand_user) ? '1.5fr 1fr' : '1fr' ?>; gap: 2.5rem; align-items: start;">
+<div class="list-detail-columns" style="grid-template-columns: <?= ($expand_user) ? '1.5fr 1fr' : '1fr' ?>;">
     
     <!-- Left Column: User Table List -->
     <section class="admin-panel">
@@ -139,18 +160,32 @@ unset($_SESSION['flash_error']);
                                     <span class="badge badge-<?= ($u['status'] === 'active') ? 'active' : 'blocked' ?>">
                                         <?= htmlspecialchars($u['status']) ?>
                                     </span>
+                                    <?php if (is_account_locked($u)): ?>
+                                        <span class="badge badge-locked" title="Locked out until <?= htmlspecialchars($u['locked_until']) ?>">
+                                            Locked (<?= get_lockout_minutes_remaining($u) ?>m)
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td style="display: flex; gap: 0.4rem;">
-                                    <a href="members.php?detail_id=<?= $u['id'] ?><?= ($search !== '') ? '&q=' . urlencode($search) : '' ?>" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Details</a>
-                                    
+                                    <a href="members.php?detail_id=<?= $u['id'] ?><?= ($search !== '') ? '&q=' . urlencode($search) : '' ?>" class="btn btn-secondary btn-sm btn-xs">Details</a>
+
                                     <?php if ($u['id'] !== $_SESSION['user_id']): ?>
                                         <form action="members.php" method="POST" style="margin: 0;">
                                             <input type="hidden" name="action" value="toggle_block">
                                             <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                                            <button type="submit" class="btn <?= ($u['status'] === 'active') ? 'btn-danger' : 'btn-primary' ?> btn-sm confirm-action" data-confirm-message="Are you sure you want to <?= ($u['status'] === 'active') ? 'BLOCK' : 'UNBLOCK' ?> user '<?= htmlspecialchars($u['username']) ?>'?" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+                                            <button type="submit" class="btn <?= ($u['status'] === 'active') ? 'btn-danger' : 'btn-primary' ?> btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to <?= ($u['status'] === 'active') ? 'BLOCK' : 'UNBLOCK' ?> user '<?= htmlspecialchars($u['username']) ?>'?">
                                                 <?= ($u['status'] === 'active') ? 'Block' : 'Unblock' ?>
                                             </button>
                                         </form>
+                                        <?php if (is_account_locked($u)): ?>
+                                            <form action="members.php" method="POST" style="margin: 0;">
+                                                <input type="hidden" name="action" value="unlock">
+                                                <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                                                <button type="submit" class="btn btn-primary btn-sm btn-xs confirm-action" data-confirm-message="Unlock user '<?= htmlspecialchars($u['username']) ?>' so they can log in again immediately?">
+                                                    Unlock
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -158,9 +193,10 @@ unset($_SESSION['flash_error']);
                     </tbody>
                 </table>
             </div>
+            <?= render_pagination($pg, 'members.php', $base_params) ?>
         <?php endif; ?>
     </section>
-    
+
     <!-- Right Column: User Details Card -->
     <?php if ($expand_user): ?>
         <section class="admin-panel dialog-container" style="margin-top: 0; text-align: center;">
@@ -202,6 +238,24 @@ unset($_SESSION['flash_error']);
                                 <span class="badge badge-<?= ($expand_user['status'] === 'active') ? 'active' : 'blocked' ?>">
                                     <?= htmlspecialchars($expand_user['status']) ?>
                                 </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: 600; padding: 0.5rem 0;">Login Lockout:</td>
+                            <td style="padding: 0.5rem 0;">
+                                <?php if (is_account_locked($expand_user)): ?>
+                                    <span class="badge badge-locked">
+                                        Locked (<?= get_lockout_minutes_remaining($expand_user) ?>m left)
+                                    </span>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem;">
+                                        Until <?= date('d F Y, h:i A', strtotime($expand_user['locked_until'])) ?>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="badge badge-active">Not locked</span>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem;">
+                                        Failed attempts: <?= (int) $expand_user['failed_attempts'] ?> / <?= MAX_LOGIN_ATTEMPTS ?>
+                                    </div>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <tr>

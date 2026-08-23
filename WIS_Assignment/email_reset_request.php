@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $mail->addEmbeddedImage($photo_path, 'photo');
                 }
 
-                $mail->Subject = 'Reset Your Password - The Daily Grind';
+                $mail->Subject = 'Reset Your Password - TAR Coffee';
                 $mail->isHTML(true);
                 $mail->Body = "
                     <p>Hi " . htmlspecialchars($user['full_name']) . ",</p>

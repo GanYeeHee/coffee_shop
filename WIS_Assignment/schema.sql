@@ -45,6 +45,8 @@ CREATE TABLE `users` (
   `photo` VARCHAR(255) DEFAULT 'default_user.png',
   `role` ENUM('admin', 'member') DEFAULT 'member',
   `status` ENUM('active', 'blocked') DEFAULT 'active',
+  `failed_attempts` INT UNSIGNED NOT NULL DEFAULT 0,
+  `locked_until` DATETIME DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_users_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

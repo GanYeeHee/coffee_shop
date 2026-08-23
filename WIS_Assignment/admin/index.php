@@ -40,7 +40,7 @@ $recent_orders_stmt = $pdo->query("SELECT o.*, u.username
 $recent_orders = $recent_orders_stmt->fetchAll();
 ?>
 
-<h1 style="margin-bottom: 2rem;">Admin Dashboard</h1>
+<h1 class="page-title">Admin Dashboard</h1>
 
 <div class="admin-dashboard">
     <!-- Stats Cards Grid -->
@@ -48,6 +48,7 @@ $recent_orders = $recent_orders_stmt->fetchAll();
         <div class="stat-card">
             <span class="title">Total Revenue</span>
             <span class="value" style="color: var(--success);">RM<?= number_format($total_sales, 2) ?></span>
+            <a href="reports.php" style="font-size: 0.8rem; font-weight: 600;">View Full Report &rarr;</a>
         </div>
         <div class="stat-card">
             <span class="title">Total Orders</span>
@@ -96,7 +97,7 @@ $recent_orders = $recent_orders_stmt->fetchAll();
                                         </span>
                                     </td>
                                     <td>
-                                        <a href="orders.php?detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">View</a>
+                                        <a href="orders.php?detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm btn-xs">View</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -110,8 +111,8 @@ $recent_orders = $recent_orders_stmt->fetchAll();
         </div>
         
         <!-- Inventory Stock Alert Panel -->
-        <div class="admin-panel" style="border-color: var(--warning);">
-            <h3 style="color: var(--warning); border-bottom-color: var(--warning);">⚠️ Inventory Alerts</h3>
+        <div class="admin-panel">
+            <h3>Inventory Alerts</h3>
             <?php if (empty($low_stock_items)): ?>
                 <div class="alert alert-success" style="box-shadow: none; border-left: none; margin-bottom: 0;">
                     All products are fully stocked.
@@ -131,13 +132,13 @@ $recent_orders = $recent_orders_stmt->fetchAll();
                                     </td>
                                     <td style="text-align: right;">
                                         <?php if ($item['stock'] == 0): ?>
-                                            <span class="badge badge-cancelled" style="font-size: 0.7rem;">Sold Out</span>
+                                            <span class="stock-badge inline out-of-stock">Sold Out</span>
                                         <?php else: ?>
-                                            <span class="badge badge-pending" style="font-size: 0.7rem;"><?= $item['stock'] ?> Left</span>
+                                            <span class="stock-badge inline low-stock"><?= $item['stock'] ?> Left</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <a href="products.php?action=edit&id=<?= $item['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.4rem; font-size: 0.75rem;">Restock</a>
+                                        <a href="products.php?action=edit&id=<?= $item['id'] ?>" class="btn btn-secondary btn-sm btn-xs">Restock</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

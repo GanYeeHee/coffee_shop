@@ -3,6 +3,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Lockout policy: block login after this many consecutive failed attempts,
+// for this many minutes.
+define('MAX_LOGIN_ATTEMPTS', 5);
+define('LOCKOUT_MINUTES', 15);
+
 /**
  * Check if a user is logged in.
  */
@@ -66,6 +71,49 @@ function require_admin() {
         header("Location: " . $redirect_to);
         exit;
     }
+}
+
+/**
+ * Check if a user's account is currently locked out from login attempts.
+ */
+function is_account_locked($user) {
+    return !empty($user['locked_until']) && strtotime($user['locked_until']) > time();
+}
+
+/**
+ * Get remaining lockout time in whole minutes (minimum 1).
+ */
+function get_lockout_minutes_remaining($user) {
+    $seconds_left = strtotime($user['locked_until']) - time();
+    return max(1, (int) ceil($seconds_left / 60));
+}
+
+/**
+ * Record a failed login attempt. Locks the account once the attempt
+ * threshold is reached. Returns the number of attempts remaining before
+ * lockout (0 means the account just got locked).
+ */
+function record_failed_login($pdo, $user) {
+    $attempts = $user['failed_attempts'] + 1;
+
+    if ($attempts >= MAX_LOGIN_ATTEMPTS) {
+        $locked_until = date('Y-m-d H:i:s', time() + LOCKOUT_MINUTES * 60);
+        $stmt = $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = ? WHERE id = ?");
+        $stmt->execute([$locked_until, $user['id']]);
+        return 0;
+    }
+
+    $stmt = $pdo->prepare("UPDATE users SET failed_attempts = ? WHERE id = ?");
+    $stmt->execute([$attempts, $user['id']]);
+    return MAX_LOGIN_ATTEMPTS - $attempts;
+}
+
+/**
+ * Clear failed attempt count and lockout on successful login.
+ */
+function reset_login_attempts($pdo, $user_id) {
+    $stmt = $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?");
+    $stmt->execute([$user_id]);
 }
 
 /**

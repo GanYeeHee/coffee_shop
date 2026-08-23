@@ -8,13 +8,21 @@ if (is_logged_in()) {
     exit;
 }
 
+// Predefined security question options
+$questions = [
+    'pet' => 'What was the name of your first pet?',
+    'coffee' => 'What is your favorite coffee bean?',
+    'city' => 'What city were you born in?',
+    'nickname' => 'What was your childhood nickname?'
+];
+
 $errors = [];
 $username = '';
 $full_name = '';
 $email = '';
 $phone = '';
-$security_question = 'What was the name of your first pet?';
-$security_answer = '';
+$selected_questions = ['pet'];
+$security_answers = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Sanitize input
@@ -26,20 +34,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone = $_POST['phone'] ?? '';
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
-    $security_question = $_POST['security_question'] ?? '';
-    $security_answer = $_POST['security_answer'] ?? '';
-    
+    $selected_questions = $_POST['security_questions'] ?? [];
+    $security_answers = $_POST['security_answers'] ?? [];
+
     // Validations
     $req_fields = [
         'username' => 'Username',
         'full_name' => 'Full Name',
         'email' => 'Email',
         'password' => 'Password',
-        'confirm_password' => 'Confirm Password',
-        'security_question' => 'Security Question',
-        'security_answer' => 'Security Answer'
+        'confirm_password' => 'Confirm Password'
     ];
     $errors = validate_required($_POST, $req_fields);
+
+    if (empty($selected_questions)) {
+        $errors['security_questions'] = "Please select at least one security question.";
+    } else {
+        foreach ($selected_questions as $q_slug) {
+            if (!isset($questions[$q_slug]) || trim($security_answers[$q_slug] ?? '') === '') {
+                $errors['security_answer_' . $q_slug] = "Please provide an answer for this security question.";
+            }
+        }
+    }
     
     if (empty($errors['username'])) {
         $username_err = validate_username($username);
@@ -128,10 +144,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $user_id = $pdo->lastInsertId();
 
-                // Store security answer hashed, lowercase-normalized so verification stays case-insensitive
-                $answer_hash = password_hash(strtolower(trim($security_answer)), PASSWORD_DEFAULT);
-                $pdo->prepare("INSERT INTO user_security_answers (user_id, security_question, answer_hash) VALUES (?, ?, ?)")
-                    ->execute([$user_id, $security_question, $answer_hash]);
+                // Store each selected security answer hashed, lowercase-normalized so verification stays case-insensitive
+                $sec_insert = $pdo->prepare("INSERT INTO user_security_answers (user_id, security_question, answer_hash) VALUES (?, ?, ?)");
+                foreach ($selected_questions as $q_slug) {
+                    $answer_hash = password_hash(strtolower(trim($security_answers[$q_slug])), PASSWORD_DEFAULT);
+                    $sec_insert->execute([$user_id, $questions[$q_slug], $answer_hash]);
+                }
 
                 $pdo->commit();
 
@@ -145,18 +163,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-
-// Prepare options for Security Questions
-$questions = [
-    'What was the name of your first pet?' => 'What was the name of your first pet?',
-    'What is your favorite coffee bean?' => 'What is your favorite coffee bean?',
-    'What city were you born in?' => 'What city were you born in?',
-    'What was your childhood nickname?' => 'What was your childhood nickname?'
-];
 ?>
 
 <div class="auth-container" style="max-width: 600px;">
-    <h2>Join The Daily Grind</h2>
+    <h2>Join TAR Coffee</h2>
     
     <?php if (isset($errors['general'])): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($errors['general']) ?></div>
@@ -174,9 +184,22 @@ $questions = [
             <?= html_input('password', 'confirm_password', '', 'Confirm Password', 'Re-enter password', $errors) ?>
         </div>
         
-        <?= html_select('security_question', $questions, $security_question, 'Security Question (For password reset)', $errors) ?>
-        <?= html_input('text', 'security_answer', $security_answer, 'Security Answer', 'Enter answer', $errors) ?>
-        
+        <div class="form-group">
+            <label>Security Question(s) (For password reset)</label>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin: -0.25rem 0 0.5rem;">Select at least one. Choosing more than one gives you extra ways to recover your account.</p>
+            <?= html_error($errors, 'security_questions') ?>
+            <?php foreach ($questions as $q_slug => $q_text): $checked = in_array($q_slug, $selected_questions); ?>
+                <div class="sec-question-row" style="margin-bottom: 0.75rem;">
+                    <label class="check-label">
+                        <input type="checkbox" name="security_questions[]" value="<?= htmlspecialchars($q_slug) ?>" class="sec-question-checkbox" <?= $checked ? 'checked' : '' ?>>
+                        <?= htmlspecialchars($q_text) ?>
+                    </label>
+                    <input type="text" name="security_answers[<?= htmlspecialchars($q_slug) ?>]" value="<?= htmlspecialchars($security_answers[$q_slug] ?? '') ?>" class="form-control sec-question-answer" placeholder="Enter answer" style="margin-top: 0.4rem;<?= $checked ? '' : ' display:none;' ?>">
+                    <?= html_error($errors, 'security_answer_' . $q_slug) ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+
         <div class="photo-upload-container">
             <img src="assets/css/../images/default_avatar.png" class="photo-preview" alt="Avatar Preview" onerror="this.src='https://www.w3schools.com/howto/img_avatar.png'">
             <div class="form-group" style="flex: 1; margin-bottom: 0;">

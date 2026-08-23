@@ -135,7 +135,7 @@ unset($_SESSION['flash_error']);
     <div class="alert alert-danger"><?= htmlspecialchars($errors['general']) ?></div>
 <?php endif; ?>
 
-<div style="display: grid; grid-template-columns: <?= ($action === 'list' || $action === 'edit') ? '1.5fr 1fr' : '1fr' ?>; gap: 2.5rem; align-items: start;">
+<div class="list-detail-columns" style="grid-template-columns: <?= ($action === 'list' || $action === 'edit') ? '1.5fr 1fr' : '1fr' ?>;">
 
     <!-- Left Column: Vouchers List Table -->
     <section class="admin-panel">
@@ -166,7 +166,7 @@ unset($_SESSION['flash_error']);
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="vouchers.php?action=edit&id=<?= $v['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Edit</a>
+                                    <a href="vouchers.php?action=edit&id=<?= $v['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                     <a href="vouchers.php?action=delete&id=<?= $v['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete voucher '<?= htmlspecialchars($v['code']) ?>'? Past orders that used it will keep their recorded discount.">Delete</a>
                                 </td>
                             </tr>

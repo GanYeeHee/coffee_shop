@@ -117,9 +117,9 @@ unset($_SESSION['flash_error']);
                 <h3>
                     <?= htmlspecialchars($template['name']) ?>
                     <?php if ($template['is_required']): ?>
-                        <span class="badge badge-active">Required by default</span>
+                        <span class="badge badge-flag-yes">Required by default</span>
                     <?php else: ?>
-                        <span class="badge badge-processing">Optional by default</span>
+                        <span class="badge badge-flag-no">Optional by default</span>
                     <?php endif; ?>
                 </h3>
                 <a href="option_templates.php?action=delete_template&template_id=<?= $template['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Delete template '<?= htmlspecialchars($template['name']) ?>' and all its values? Products that already applied this template keep their own copy.">Delete Template</a>

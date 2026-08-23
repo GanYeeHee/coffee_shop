@@ -2,6 +2,9 @@
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
+require_once __DIR__ . '/includes/mailer.php';
+
+class StockShortageException extends Exception {}
 
 // AJAX: live voucher preview. Cosmetic only - the real discount is always
 // recomputed server-side on submission below, never trusted from the client.
@@ -227,9 +230,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // 2. Insert order items & Decrement stock levels
             $item_stmt = $pdo->prepare("INSERT INTO order_items (order_id, product_id, price, quantity, customization, options_summary) VALUES (?, ?, ?, ?, ?, ?)");
-            $stock_stmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ?");
+            // Conditional UPDATE is the real stock guard: it atomically re-checks and
+            // decrements in one statement, closing the race the earlier SELECT (line ~198)
+            // can't prevent since two concurrent requests could both pass that check.
+            $stock_stmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
 
             foreach ($cart_items as $item) {
+                $stock_stmt->execute([
+                    $item['quantity'],
+                    $item['id'],
+                    $item['quantity']
+                ]);
+
+                if ($stock_stmt->rowCount() === 0) {
+                    throw new StockShortageException("Sorry, '{$item['name']}' no longer has enough stock. Please adjust your cart.");
+                }
+
                 $item_stmt->execute([
                     $order_id,
                     $item['id'],
@@ -237,11 +253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $item['quantity'],
                     $item['customization'],
                     $item['options_summary']
-                ]);
-
-                $stock_stmt->execute([
-                    $item['quantity'],
-                    $item['id']
                 ]);
             }
 
@@ -266,11 +277,144 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->commit();
 
+            // Send order confirmation email (best-effort; must never block checkout success)
+            try {
+                $mail = get_mail();
+                $mail->addAddress($current_user['email'] ?? '', $current_user['full_name'] ?? '');
+                $mail->Subject = "Order Confirmation #{$order_id} - TAR Coffee";
+                $mail->isHTML(true);
+
+                // Brand tokens (mirrors assets/css/style.css :root, since email clients can't read external CSS)
+                $c_canvas  = '#3E2723'; // Espresso
+                $c_card    = '#FFFFFF';
+                $c_panel   = '#FAF6F0'; // Cappuccino Cream
+                $c_border  = '#E2D9D2'; // Cream Border
+                $c_amber   = '#E65100'; // Caramel Amber
+                $c_ink     = '#3E2723'; // Espresso (headings)
+                $c_muted   = '#6D5C59'; // Soft Brown
+                $c_success = '#2E7D32'; // Matcha Green
+                $f_display = "Georgia, 'Times New Roman', serif";
+                $f_body    = "'Segoe UI', Helvetica, Arial, sans-serif";
+
+                $detail_row = function ($label, $value) use ($f_body, $c_muted, $c_ink) {
+                    return '<tr>'
+                        . '<td style="padding:6px 0;font-family:' . $f_body . ';font-size:13px;font-weight:600;color:' . $c_muted . ';white-space:nowrap;">' . $label . '</td>'
+                        . '<td style="padding:6px 0 6px 16px;font-family:' . $f_body . ';font-size:13px;color:' . $c_ink . ';text-align:right;">' . $value . '</td>'
+                        . '</tr>';
+                };
+
+                $details_rows = $detail_row('Placed On', htmlspecialchars(date('d M Y, h:i A')));
+                if ($fulfillment_type === 'delivery') {
+                    $details_rows .= $detail_row('Fulfillment', 'Delivery');
+                    $details_rows .= $detail_row('Deliver To', nl2br(htmlspecialchars($resolved_shipping_address)));
+                } else {
+                    $details_rows .= $detail_row('Fulfillment', 'Pickup at Store');
+                }
+                if ($payment_method === 'card') {
+                    $payment_label = 'Card &bull;&bull;&bull;&bull; ' . substr($clean_card, -4);
+                } elseif ($payment_method === 'e_wallet') {
+                    $payment_label = 'E-Wallet';
+                } else {
+                    $payment_label = 'Cash';
+                }
+                $details_rows .= $detail_row('Payment', $payment_label);
+                $details_rows .= $detail_row('Email', htmlspecialchars($current_user['email'] ?? ''));
+
+                $items_html = '';
+                foreach ($cart_items as $item) {
+                    $items_html .= '<tr>'
+                        . '<td style="padding:8px 0;border-bottom:1px solid ' . $c_border . ';font-family:' . $f_body . ';font-size:13px;color:' . $c_ink . ';">' . htmlspecialchars($item['name'])
+                        . ' <span style="color:' . $c_muted . ';">x' . intval($item['quantity']) . '</span>'
+                        . (!empty($item['options_summary']) ? '<br><span style="font-size:12px;color:' . $c_muted . ';">' . htmlspecialchars($item['options_summary']) . '</span>' : '')
+                        . (!empty($item['customization']) ? '<br><span style="font-size:12px;color:' . $c_muted . ';">Note: ' . htmlspecialchars($item['customization']) . '</span>' : '')
+                        . '</td>'
+                        . '<td style="padding:8px 0;border-bottom:1px solid ' . $c_border . ';font-family:' . $f_body . ';font-size:13px;color:' . $c_ink . ';text-align:right;white-space:nowrap;">RM' . number_format($item['unit_price'] * $item['quantity'], 2) . '</td>'
+                        . '</tr>';
+                }
+                if ($discount_amount > 0) {
+                    $items_html .= '<tr>'
+                        . '<td style="padding:8px 0;font-family:' . $f_body . ';font-size:13px;color:' . $c_success . ';">Voucher Discount</td>'
+                        . '<td style="padding:8px 0;font-family:' . $f_body . ';font-size:13px;color:' . $c_success . ';text-align:right;">-RM' . number_format($discount_amount, 2) . '</td>'
+                        . '</tr>';
+                }
+
+                $final_total_formatted = number_format($final_total, 2);
+
+                $mail->Body = <<<HTML
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{$c_canvas};padding:32px 16px;">
+                    <tr><td align="center">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:{$c_card};border-radius:8px;overflow:hidden;">
+
+                            <!-- Header: wordmark + status pill -->
+                            <tr><td style="padding:28px 32px 0 32px;">
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                                    <td style="font-family:{$f_display};font-size:20px;font-weight:700;color:{$c_ink};">&#9749; TAR Coffee</td>
+                                    <td align="right"><span style="display:inline-block;background-color:{$c_success};color:#ffffff;font-family:{$f_body};font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;">Confirmed</span></td>
+                                </tr></table>
+                            </td></tr>
+
+                            <!-- Amber rule -->
+                            <tr><td style="padding:14px 32px 0 32px;"><div style="height:2px;background-color:{$c_amber};line-height:2px;font-size:2px;">&nbsp;</div></td></tr>
+
+                            <!-- Eyebrow + order id -->
+                            <tr><td style="padding:16px 32px 0 32px;">
+                                <p style="margin:0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Order Receipt</p>
+                                <p style="margin:2px 0 0 0;font-family:{$f_body};font-size:14px;color:{$c_ink};">#{$order_id}</p>
+                            </td></tr>
+
+                            <!-- Total paid -->
+                            <tr><td style="padding:18px 32px 0 32px;">
+                                <p style="margin:0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Total Paid</p>
+                                <p style="margin:2px 0 0 0;font-family:{$f_display};font-size:36px;font-weight:700;color:{$c_ink};">RM {$final_total_formatted}</p>
+                            </td></tr>
+
+                            <!-- Order details panel -->
+                            <tr><td style="padding:24px 32px 0 32px;">
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{$c_panel};border:1px solid {$c_border};border-radius:6px;">
+                                    <tr><td style="padding:16px 18px;">
+                                        <p style="margin:0 0 4px 0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Order Details</p>
+                                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                            {$details_rows}
+                                        </table>
+                                    </td></tr>
+                                </table>
+                            </td></tr>
+
+                            <!-- Items -->
+                            <tr><td style="padding:24px 32px 0 32px;">
+                                <p style="margin:0 0 4px 0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Your Items</p>
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                    {$items_html}
+                                </table>
+                            </td></tr>
+
+                            <!-- Perforated tear line -->
+                            <tr><td style="padding:24px 32px 0 32px;"><div style="border-top:2px dashed {$c_border};line-height:0;font-size:0;">&nbsp;</div></td></tr>
+
+                            <!-- Footer -->
+                            <tr><td style="padding:20px 32px;background-color:{$c_canvas};margin-top:20px;">
+                                <p style="margin:0;font-family:{$f_display};font-size:15px;font-weight:700;color:#FAF6F0;">&#9749; TAR Coffee</p>
+                                <p style="margin:6px 0 0 0;font-family:{$f_body};font-size:12px;color:#C9B8AF;">Questions about your order? Just reply to this email.</p>
+                            </td></tr>
+
+                        </table>
+                    </td></tr>
+                </table>
+                HTML;
+
+                $mail->send();
+            } catch (\Exception $e) {
+                // Swallow send failures so a flaky mail server never blocks a placed order
+            }
+
             // Redirect with success message
             $_SESSION['flash_success'] = "Thank you! Your order #{$order_id} has been placed successfully and is pending preparation.";
             header("Location: orders.php");
             exit;
 
+        } catch (StockShortageException $e) {
+            $pdo->rollBack();
+            $errors['general'] = $e->getMessage();
         } catch (Exception $e) {
             $pdo->rollBack();
             $errors['general'] = "Checkout transaction failed: " . $e->getMessage();
@@ -285,14 +429,14 @@ foreach ($saved_addresses as $sa) {
 $address_options['new'] = '+ Enter a new address';
 ?>
 
-<div style="max-width: 900px; margin: 0 auto;">
-    <h1 style="margin-bottom: 2rem;">Checkout</h1>
+<div class="checkout-page">
+    <h1 class="page-title">Checkout</h1>
 
     <?php if (isset($errors['general'])): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($errors['general']) ?></div>
     <?php endif; ?>
 
-    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 3rem;">
+    <div class="checkout-grid">
 
         <!-- Order Details Form -->
         <section class="admin-panel">
@@ -305,109 +449,114 @@ $address_options['new'] = '+ Enter a new address';
 
                 <div class="form-group">
                     <label>Fulfillment</label>
-                    <div style="display: flex; gap: 1.5rem; margin-top: 0.4rem;">
-                        <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                            <input type="radio" name="fulfillment_type" value="delivery" <?= $fulfillment_type === 'delivery' ? 'checked' : '' ?>> Delivery
-                        </label>
-                        <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                            <input type="radio" name="fulfillment_type" value="pickup" <?= $fulfillment_type === 'pickup' ? 'checked' : '' ?>> Pickup at Store
-                        </label>
+                    <div class="fulfil-options">
+                        <div class="fulfil-card">
+                            <input type="radio" name="fulfillment_type" value="delivery" id="fulfillment-delivery" <?= $fulfillment_type === 'delivery' ? 'checked' : '' ?>>
+                            <label for="fulfillment-delivery"><span class="radio-dot"></span>Delivery</label>
+                        </div>
+                        <div class="fulfil-card">
+                            <input type="radio" name="fulfillment_type" value="pickup" id="fulfillment-pickup" <?= $fulfillment_type === 'pickup' ? 'checked' : '' ?>>
+                            <label for="fulfillment-pickup"><span class="radio-dot"></span>Pickup at Store</label>
+                        </div>
                     </div>
                 </div>
 
-                <div id="delivery-section" style="<?= $fulfillment_type === 'pickup' ? 'display: none;' : '' ?>">
+                <div id="delivery-section" class="<?= $fulfillment_type === 'pickup' ? 'is-hidden' : '' ?>">
                     <?php if (!empty($saved_addresses)): ?>
                         <?= html_select('address_id', $address_options, ($address_id > 0 ? $address_id : 'new'), 'Delivery Address', $errors) ?>
                     <?php endif; ?>
 
-                    <div id="new-address-section" style="<?= (!empty($saved_addresses) && $address_id > 0) ? 'display: none;' : '' ?>">
+                    <div id="new-address-section" class="<?= (!empty($saved_addresses) && $address_id > 0) ? 'is-hidden' : '' ?>">
                         <?= html_textarea('shipping_address', $shipping_address, 'Shipping Address', 'Enter your delivery address', $errors) ?>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="field-voucher_code">Voucher Code (Optional)</label>
-                    <div style="display: flex; gap: 0.5rem;">
+                    <div class="inline-field-group">
                         <input type="text" name="voucher_code" id="field-voucher_code" class="form-control" value="<?= htmlspecialchars($voucher_code) ?>" placeholder="e.g. COFFEE10">
                         <button type="button" id="apply-voucher-btn" class="btn btn-secondary btn-sm">Apply</button>
                     </div>
-                    <span id="voucher-message" style="font-size: 0.85rem; display: block; margin-top: 0.3rem;"></span>
+                    <span id="voucher-message" class="voucher-message"></span>
                     <?= html_error($errors, 'voucher_code') ?>
                 </div>
 
-                <h4 style="margin-top: 1.5rem; margin-bottom: 1rem; font-family: 'Outfit', sans-serif; font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; color: var(--primary);">
-                    Payment Method
-                </h4>
+                <h4 class="panel-subheading">Payment Method</h4>
 
-                <div style="display: flex; gap: 1.5rem; margin-bottom: 1rem;">
-                    <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                        <input type="radio" name="payment_method" value="card" <?= $payment_method === 'card' ? 'checked' : '' ?>> Card
-                    </label>
-                    <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                        <input type="radio" name="payment_method" value="e_wallet" <?= $payment_method === 'e_wallet' ? 'checked' : '' ?>> E-Wallet
-                    </label>
-                    <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                        <input type="radio" name="payment_method" value="cash" <?= $payment_method === 'cash' ? 'checked' : '' ?>> Cash
-                    </label>
+                <div class="fulfil-options fulfil-options--tight">
+                    <div class="fulfil-card">
+                        <input type="radio" name="payment_method" value="card" id="payment-card" <?= $payment_method === 'card' ? 'checked' : '' ?>>
+                        <label for="payment-card"><span class="radio-dot"></span>Card</label>
+                    </div>
+                    <div class="fulfil-card">
+                        <input type="radio" name="payment_method" value="e_wallet" id="payment-ewallet" <?= $payment_method === 'e_wallet' ? 'checked' : '' ?>>
+                        <label for="payment-ewallet"><span class="radio-dot"></span>E-Wallet</label>
+                    </div>
+                    <div class="fulfil-card">
+                        <input type="radio" name="payment_method" value="cash" id="payment-cash" <?= $payment_method === 'cash' ? 'checked' : '' ?>>
+                        <label for="payment-cash"><span class="radio-dot"></span>Cash</label>
+                    </div>
                 </div>
 
-                <div id="card-payment-section" style="<?= $payment_method !== 'card' ? 'display: none;' : '' ?>">
-                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                <div id="card-payment-section" class="<?= $payment_method !== 'card' ? 'is-hidden' : '' ?>">
+                    <p class="checkout-disclaimer">
                         * This is a simulated university checkout. Please do NOT enter real credit card numbers.
                     </p>
                     <?= html_input('text', 'card_name', $card_name, 'Cardholder Name', 'e.g. John Doe', $errors) ?>
                     <?= html_input('text', 'card_number', $card_number, 'Credit Card Number', '1234 5678 1234 5678', $errors, ['maxlength' => '19']) ?>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="field-row-2">
                         <?= html_input('text', 'card_expiry', $card_expiry, 'Expiration Date', 'MM/YY', $errors, ['maxlength' => '5']) ?>
                         <?= html_input('password', 'card_cvv', $card_cvv, 'CVV Code', '123', $errors, ['maxlength' => '4']) ?>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-accent btn-block" style="margin-top: 1.5rem; text-align: center;">
+                <button type="submit" class="btn btn-accent btn-block checkout-submit">
                     Place Order
                 </button>
             </form>
         </section>
 
         <!-- Order Summary Sidebar -->
-        <section class="admin-panel" style="height: fit-content;">
+        <section class="admin-panel order-summary-panel">
             <h3>Order Summary</h3>
-            <ul style="list-style: none;">
-                <?php foreach ($cart_items as $item): ?>
-                    <li style="display: flex; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid var(--border-color);">
-                        <div>
-                            <strong><?= htmlspecialchars($item['name']) ?></strong><br>
-                            <span style="font-size: 0.85rem; color: var(--text-muted);">Qty: <?= $item['quantity'] ?> @ RM<?= number_format($item['unit_price'], 2) ?> each</span>
+
+            <?php foreach ($cart_items as $item): ?>
+                <div class="receipt-line">
+                    <div>
+                        <span class="item-name"><?= htmlspecialchars($item['name']) ?></span>
+                        <span class="item-meta">
+                            Qty: <?= $item['quantity'] ?> @ RM<?= number_format($item['unit_price'], 2) ?> each
                             <?php if (!empty($item['options_summary'])): ?>
-                                <br><span style="font-size: 0.8rem; color: var(--text-muted);"><?= htmlspecialchars($item['options_summary']) ?></span>
+                                <br><?= htmlspecialchars($item['options_summary']) ?>
                             <?php endif; ?>
                             <?php if (!empty($item['customization'])): ?>
-                                <br><span style="font-size: 0.8rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
+                                <br>Note: <?= htmlspecialchars($item['customization']) ?>
                             <?php endif; ?>
-                        </div>
-                        <span style="font-weight: 500;">RM<?= number_format($item['unit_price'] * $item['quantity'], 2) ?></span>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
+                        </span>
+                    </div>
+                    <span class="receipt-dots"></span>
+                    <span class="amount">RM<?= number_format($item['unit_price'] * $item['quantity'], 2) ?></span>
+                </div>
+            <?php endforeach; ?>
 
-            <div style="margin-top: 1.5rem; display: flex; justify-content: space-between;">
+            <div class="receipt-summary-line">
                 <span>Subtotal:</span>
                 <strong>RM<?= number_format($grand_total, 2) ?></strong>
             </div>
 
-            <div id="discount-line" style="display: <?= $discount_amount > 0 ? 'flex' : 'none' ?>; justify-content: space-between; color: var(--success); margin-top: 0.4rem;">
+            <div id="discount-line" class="receipt-summary-line receipt-summary-line--discount" style="display: <?= $discount_amount > 0 ? 'flex' : 'none' ?>;">
                 <span>Voucher Discount:</span>
                 <strong id="discount-amount">-RM<?= number_format($discount_amount, 2) ?></strong>
             </div>
 
-            <div style="margin-top: 0.8rem; font-size: 1.3rem; display: flex; justify-content: space-between; font-weight: 700; color: var(--primary-dark);">
-                <span>Total:</span>
+            <div class="receipt-total">
+                <span>Total</span>
                 <span id="grand-total-amount">RM<?= number_format($final_total, 2) ?></span>
             </div>
 
-            <div style="margin-top: 1.5rem;">
-                <a href="cart.php" class="btn btn-secondary btn-sm" style="width: 100%; text-align: center;">Modify Shopping Cart</a>
+            <div class="panel-action">
+                <a href="cart.php" class="btn btn-secondary btn-sm btn-block">Modify Shopping Cart</a>
             </div>
         </section>
 

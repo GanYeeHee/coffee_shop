@@ -44,6 +44,9 @@ if ($reset_token && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
         $stmt->execute([$hashed_pw, $reset_token['user_id']]);
 
+        // Proving identity via the emailed token also clears any login lockout
+        reset_login_attempts($pdo, $reset_token['user_id']);
+
         $stmt = $pdo->prepare("DELETE FROM password_reset_tokens WHERE token = ?");
         $stmt->execute([$token]);
 

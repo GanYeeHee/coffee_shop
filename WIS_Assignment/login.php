@@ -44,10 +44,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Check if user is blocked
             if ($user['status'] === 'blocked') {
                 $errors['general'] = "Your account has been blocked by an administrator.";
+            } elseif (is_account_locked($user)) {
+                $minutes = get_lockout_minutes_remaining($user);
+                $errors['general'] = "Too many failed login attempts. Please try again in $minutes minute(s).";
             } elseif (password_verify($password, $user['password'])) {
                 // Log user in
+                reset_login_attempts($pdo, $user['id']);
                 login_user($user);
-                
+
                 // Redirect based on role
                 if ($user['role'] === 'admin') {
                     header("Location: admin/index.php");
@@ -56,7 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 exit;
             } else {
-                $errors['general'] = "Invalid username or password.";
+                $remaining = record_failed_login($pdo, $user);
+                if ($remaining > 0) {
+                    $errors['general'] = "Invalid username or password. $remaining attempt(s) remaining before lockout.";
+                } else {
+                    $errors['general'] = "Too many failed login attempts. Please try again in " . LOCKOUT_MINUTES . " minute(s).";
+                }
             }
         } else {
             $errors['general'] = "Invalid username or password.";
@@ -83,20 +92,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form action="login.php" method="POST" novalidate>
         <?= html_input('text', 'username', $username, 'Username or Email', 'Enter your username or email', $errors) ?>
         
-        <div style="position: relative;">
-            <?= html_input('password', 'password', '', 'Password', 'Enter your password', $errors) ?>
-            <div style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
-                <a href="password_reset.php" style="font-size: 0.85rem; color: var(--text-muted);">Forgot password?</a>
-                &middot;
-                <a href="email_reset_request.php" style="font-size: 0.85rem; color: var(--text-muted);">Reset via email</a>
-            </div>
+        <?= html_input('password', 'password', '', 'Password', 'Enter your password', $errors) ?>
+        <div class="auth-links text-right">
+            <a href="password_reset.php">Forgot password?</a>
+            &middot;
+            <a href="email_reset_request.php">Reset via email</a>
         </div>
-        
-        <button type="submit" class="btn btn-accent btn-block" style="margin-top: 1rem;">Log In</button>
+
+        <button type="submit" class="btn btn-accent btn-block checkout-submit">Log In</button>
     </form>
     
     <div class="auth-footer">
-        New to The Daily Grind? <a href="register.php">Create an account</a>.
+        New to TAR Coffee? <a href="register.php">Create an account</a>.
     </div>
 </div>
 
