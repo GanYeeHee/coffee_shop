@@ -4,6 +4,8 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
 require_once __DIR__ . '/includes/mailer.php';
 
+class StockShortageException extends Exception {}
+
 // AJAX: live voucher preview. Cosmetic only - the real discount is always
 // recomputed server-side on submission below, never trusted from the client.
 if (isset($_POST['action']) && $_POST['action'] === 'validate_voucher') {
@@ -228,9 +230,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // 2. Insert order items & Decrement stock levels
             $item_stmt = $pdo->prepare("INSERT INTO order_items (order_id, product_id, price, quantity, customization, options_summary) VALUES (?, ?, ?, ?, ?, ?)");
-            $stock_stmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ?");
+            // Conditional UPDATE is the real stock guard: it atomically re-checks and
+            // decrements in one statement, closing the race the earlier SELECT (line ~198)
+            // can't prevent since two concurrent requests could both pass that check.
+            $stock_stmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
 
             foreach ($cart_items as $item) {
+                $stock_stmt->execute([
+                    $item['quantity'],
+                    $item['id'],
+                    $item['quantity']
+                ]);
+
+                if ($stock_stmt->rowCount() === 0) {
+                    throw new StockShortageException("Sorry, '{$item['name']}' no longer has enough stock. Please adjust your cart.");
+                }
+
                 $item_stmt->execute([
                     $order_id,
                     $item['id'],
@@ -238,11 +253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $item['quantity'],
                     $item['customization'],
                     $item['options_summary']
-                ]);
-
-                $stock_stmt->execute([
-                    $item['quantity'],
-                    $item['id']
                 ]);
             }
 
@@ -402,6 +412,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: orders.php");
             exit;
 
+        } catch (StockShortageException $e) {
+            $pdo->rollBack();
+            $errors['general'] = $e->getMessage();
         } catch (Exception $e) {
             $pdo->rollBack();
             $errors['general'] = "Checkout transaction failed: " . $e->getMessage();
