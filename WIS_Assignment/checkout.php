@@ -274,50 +274,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mail->Subject = "Order Confirmation #{$order_id} - The Daily Grind";
                 $mail->isHTML(true);
 
+                // Brand tokens (mirrors assets/css/style.css :root, since email clients can't read external CSS)
+                $c_canvas  = '#3E2723'; // Espresso
+                $c_card    = '#FFFFFF';
+                $c_panel   = '#FAF6F0'; // Cappuccino Cream
+                $c_border  = '#E2D9D2'; // Cream Border
+                $c_amber   = '#E65100'; // Caramel Amber
+                $c_ink     = '#3E2723'; // Espresso (headings)
+                $c_muted   = '#6D5C59'; // Soft Brown
+                $c_success = '#2E7D32'; // Matcha Green
+                $f_display = "Georgia, 'Times New Roman', serif";
+                $f_body    = "'Segoe UI', Helvetica, Arial, sans-serif";
+
+                $detail_row = function ($label, $value) use ($f_body, $c_muted, $c_ink) {
+                    return '<tr>'
+                        . '<td style="padding:6px 0;font-family:' . $f_body . ';font-size:13px;font-weight:600;color:' . $c_muted . ';white-space:nowrap;">' . $label . '</td>'
+                        . '<td style="padding:6px 0 6px 16px;font-family:' . $f_body . ';font-size:13px;color:' . $c_ink . ';text-align:right;">' . $value . '</td>'
+                        . '</tr>';
+                };
+
+                $details_rows = $detail_row('Placed On', htmlspecialchars(date('d M Y, h:i A')));
+                if ($fulfillment_type === 'delivery') {
+                    $details_rows .= $detail_row('Fulfillment', 'Delivery');
+                    $details_rows .= $detail_row('Deliver To', nl2br(htmlspecialchars($resolved_shipping_address)));
+                } else {
+                    $details_rows .= $detail_row('Fulfillment', 'Pickup at Store');
+                }
+                if ($payment_method === 'card') {
+                    $payment_label = 'Card &bull;&bull;&bull;&bull; ' . substr($clean_card, -4);
+                } elseif ($payment_method === 'e_wallet') {
+                    $payment_label = 'E-Wallet';
+                } else {
+                    $payment_label = 'Cash';
+                }
+                $details_rows .= $detail_row('Payment', $payment_label);
+                $details_rows .= $detail_row('Email', htmlspecialchars($current_user['email'] ?? ''));
+
                 $items_html = '';
                 foreach ($cart_items as $item) {
                     $items_html .= '<tr>'
-                        . '<td style="padding:6px 8px;border-bottom:1px solid #eee;">' . htmlspecialchars($item['name'])
-                        . (!empty($item['options_summary']) ? '<br><span style="font-size:12px;color:#777;">' . htmlspecialchars($item['options_summary']) . '</span>' : '')
-                        . (!empty($item['customization']) ? '<br><span style="font-size:12px;color:#777;">Note: ' . htmlspecialchars($item['customization']) . '</span>' : '')
+                        . '<td style="padding:8px 0;border-bottom:1px solid ' . $c_border . ';font-family:' . $f_body . ';font-size:13px;color:' . $c_ink . ';">' . htmlspecialchars($item['name'])
+                        . ' <span style="color:' . $c_muted . ';">x' . intval($item['quantity']) . '</span>'
+                        . (!empty($item['options_summary']) ? '<br><span style="font-size:12px;color:' . $c_muted . ';">' . htmlspecialchars($item['options_summary']) . '</span>' : '')
+                        . (!empty($item['customization']) ? '<br><span style="font-size:12px;color:' . $c_muted . ';">Note: ' . htmlspecialchars($item['customization']) . '</span>' : '')
                         . '</td>'
-                        . '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;">' . intval($item['quantity']) . '</td>'
-                        . '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">RM' . number_format($item['unit_price'] * $item['quantity'], 2) . '</td>'
+                        . '<td style="padding:8px 0;border-bottom:1px solid ' . $c_border . ';font-family:' . $f_body . ';font-size:13px;color:' . $c_ink . ';text-align:right;white-space:nowrap;">RM' . number_format($item['unit_price'] * $item['quantity'], 2) . '</td>'
+                        . '</tr>';
+                }
+                if ($discount_amount > 0) {
+                    $items_html .= '<tr>'
+                        . '<td style="padding:8px 0;font-family:' . $f_body . ';font-size:13px;color:' . $c_success . ';">Voucher Discount</td>'
+                        . '<td style="padding:8px 0;font-family:' . $f_body . ';font-size:13px;color:' . $c_success . ';text-align:right;">-RM' . number_format($discount_amount, 2) . '</td>'
                         . '</tr>';
                 }
 
-                $fulfillment_html = $fulfillment_type === 'delivery'
-                    ? '<p><strong>Deliver To:</strong><br>' . nl2br(htmlspecialchars($resolved_shipping_address)) . '</p>'
-                    : '<p><strong>Fulfillment:</strong> Pickup at Store</p>';
+                $final_total_formatted = number_format($final_total, 2);
 
-                $discount_html = $discount_amount > 0
-                    ? '<tr><td colspan="2" style="padding:4px 8px;text-align:right;">Voucher Discount:</td><td style="padding:4px 8px;text-align:right;">-RM' . number_format($discount_amount, 2) . '</td></tr>'
-                    : '';
+                $mail->Body = <<<HTML
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{$c_canvas};padding:32px 16px;">
+                    <tr><td align="center">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:{$c_card};border-radius:8px;overflow:hidden;">
 
-                $mail->Body = "
-                    <p>Hi " . htmlspecialchars($current_user['full_name'] ?? '') . ",</p>
-                    <p>Thank you for your order! Here is your receipt for Order #{$order_id}.</p>
-                    <table style=\"border-collapse:collapse;width:100%;max-width:500px;\">
-                        <thead>
-                            <tr>
-                                <th style=\"padding:6px 8px;text-align:left;border-bottom:2px solid #333;\">Item</th>
-                                <th style=\"padding:6px 8px;text-align:center;border-bottom:2px solid #333;\">Qty</th>
-                                <th style=\"padding:6px 8px;text-align:right;border-bottom:2px solid #333;\">Subtotal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {$items_html}
-                            {$discount_html}
-                            <tr>
-                                <td colspan=\"2\" style=\"padding:6px 8px;text-align:right;font-weight:bold;\">Total:</td>
-                                <td style=\"padding:6px 8px;text-align:right;font-weight:bold;\">RM" . number_format($final_total, 2) . "</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    {$fulfillment_html}
-                    <p><strong>Payment Method:</strong> " . htmlspecialchars(ucfirst(str_replace('_', ' ', $payment_method))) . "</p>
-                    <p>We'll notify you once your order is being prepared. You can also view this receipt anytime under My Orders.</p>
-                ";
+                            <!-- Header: wordmark + status pill -->
+                            <tr><td style="padding:28px 32px 0 32px;">
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                                    <td style="font-family:{$f_display};font-size:20px;font-weight:700;color:{$c_ink};">&#9749; The Daily Grind</td>
+                                    <td align="right"><span style="display:inline-block;background-color:{$c_success};color:#ffffff;font-family:{$f_body};font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;">Confirmed</span></td>
+                                </tr></table>
+                            </td></tr>
+
+                            <!-- Amber rule -->
+                            <tr><td style="padding:14px 32px 0 32px;"><div style="height:2px;background-color:{$c_amber};line-height:2px;font-size:2px;">&nbsp;</div></td></tr>
+
+                            <!-- Eyebrow + order id -->
+                            <tr><td style="padding:16px 32px 0 32px;">
+                                <p style="margin:0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Order Receipt</p>
+                                <p style="margin:2px 0 0 0;font-family:{$f_body};font-size:14px;color:{$c_ink};">#{$order_id}</p>
+                            </td></tr>
+
+                            <!-- Total paid -->
+                            <tr><td style="padding:18px 32px 0 32px;">
+                                <p style="margin:0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Total Paid</p>
+                                <p style="margin:2px 0 0 0;font-family:{$f_display};font-size:36px;font-weight:700;color:{$c_ink};">RM {$final_total_formatted}</p>
+                            </td></tr>
+
+                            <!-- Order details panel -->
+                            <tr><td style="padding:24px 32px 0 32px;">
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{$c_panel};border:1px solid {$c_border};border-radius:6px;">
+                                    <tr><td style="padding:16px 18px;">
+                                        <p style="margin:0 0 4px 0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Order Details</p>
+                                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                            {$details_rows}
+                                        </table>
+                                    </td></tr>
+                                </table>
+                            </td></tr>
+
+                            <!-- Items -->
+                            <tr><td style="padding:24px 32px 0 32px;">
+                                <p style="margin:0 0 4px 0;font-family:{$f_body};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:{$c_muted};">Your Items</p>
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                    {$items_html}
+                                </table>
+                            </td></tr>
+
+                            <!-- Perforated tear line -->
+                            <tr><td style="padding:24px 32px 0 32px;"><div style="border-top:2px dashed {$c_border};line-height:0;font-size:0;">&nbsp;</div></td></tr>
+
+                            <!-- Footer -->
+                            <tr><td style="padding:20px 32px;background-color:{$c_canvas};margin-top:20px;">
+                                <p style="margin:0;font-family:{$f_display};font-size:15px;font-weight:700;color:#FAF6F0;">&#9749; The Daily Grind</p>
+                                <p style="margin:6px 0 0 0;font-family:{$f_body};font-size:12px;color:#C9B8AF;">Questions about your order? Just reply to this email.</p>
+                            </td></tr>
+
+                        </table>
+                    </td></tr>
+                </table>
+                HTML;
 
                 $mail->send();
             } catch (\Exception $e) {
