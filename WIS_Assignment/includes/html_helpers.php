@@ -15,21 +15,28 @@ function html_error($errors, $field) {
 function html_input($type, $name, $value = '', $label = '', $placeholder = '', $errors = [], $attributes = []) {
     $val = htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
     $err_class = isset($errors[$name]) ? 'input-error' : '';
-    
+
+    // A 'class' key merges into the generated class string instead of emitting a second class="" attribute.
+    $extra_class = '';
+    if (isset($attributes['class'])) {
+        $extra_class = ' ' . $attributes['class'];
+        unset($attributes['class']);
+    }
+
     // Convert attributes array to string
     $attrs_str = '';
     foreach ($attributes as $key => $val_attr) {
         $attrs_str .= ' ' . htmlspecialchars($key) . '="' . htmlspecialchars($val_attr) . '"';
     }
-    
+
     $html = '<div class="form-group">';
     if ($label) {
         $html .= '<label for="field-' . htmlspecialchars($name) . '">' . htmlspecialchars($label) . '</label>';
     }
-    $html .= '<input type="' . htmlspecialchars($type) . '" name="' . htmlspecialchars($name) . '" id="field-' . htmlspecialchars($name) . '" class="form-control ' . $err_class . '" value="' . $val . '" placeholder="' . htmlspecialchars($placeholder) . '"' . $attrs_str . '>';
+    $html .= '<input type="' . htmlspecialchars($type) . '" name="' . htmlspecialchars($name) . '" id="field-' . htmlspecialchars($name) . '" class="form-control ' . $err_class . htmlspecialchars($extra_class) . '" value="' . $val . '" placeholder="' . htmlspecialchars($placeholder) . '"' . $attrs_str . '>';
     $html .= html_error($errors, $name);
     $html .= '</div>';
-    
+
     return $html;
 }
 

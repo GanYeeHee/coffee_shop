@@ -136,7 +136,7 @@ unset($_SESSION['flash_error']);
     <div class="alert alert-danger"><?= htmlspecialchars($errors['general']) ?></div>
 <?php endif; ?>
 
-<div style="display: grid; grid-template-columns: <?= ($action === 'list' || $action === 'edit') ? '1.5fr 1fr' : '1fr' ?>; gap: 2.5rem; align-items: start;">
+<div class="list-detail-columns" style="grid-template-columns: <?= ($action === 'list' || $action === 'edit') ? '1.5fr 1fr' : '1fr' ?>;">
     
     <!-- Left Column: Categories List Table -->
     <section class="admin-panel">
@@ -159,9 +159,9 @@ unset($_SESSION['flash_error']);
                             <tr style="<?= ($id === $c['id']) ? 'background-color: #FAF6F0;' : '' ?>">
                                 <td><strong><?= htmlspecialchars($c['name']) ?></strong></td>
                                 <td style="font-size: 0.9rem; color: var(--text-muted);"><?= htmlspecialchars($c['description'] ?? 'No description.') ?></td>
-                                <td style="text-align: center;"><span class="badge badge-processing"><?= $c['product_count'] ?></span></td>
+                                <td style="text-align: center;"><span class="badge badge-count"><?= $c['product_count'] ?></span></td>
                                 <td>
-                                    <a href="categories.php?action=edit&id=<?= $c['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Edit</a>
+                                    <a href="categories.php?action=edit&id=<?= $c['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                     <a href="categories.php?action=delete&id=<?= $c['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete category '<?= htmlspecialchars($c['name']) ?>'? Associated products will NOT be deleted, they will become uncategorized.">Delete</a>
                                 </td>
                             </tr>

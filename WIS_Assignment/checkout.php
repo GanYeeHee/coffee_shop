@@ -416,14 +416,14 @@ foreach ($saved_addresses as $sa) {
 $address_options['new'] = '+ Enter a new address';
 ?>
 
-<div style="max-width: 900px; margin: 0 auto;">
-    <h1 style="margin-bottom: 2rem;">Checkout</h1>
+<div class="checkout-page">
+    <h1 class="page-title">Checkout</h1>
 
     <?php if (isset($errors['general'])): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($errors['general']) ?></div>
     <?php endif; ?>
 
-    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 3rem;">
+    <div class="checkout-grid">
 
         <!-- Order Details Form -->
         <section class="admin-panel">
@@ -436,109 +436,114 @@ $address_options['new'] = '+ Enter a new address';
 
                 <div class="form-group">
                     <label>Fulfillment</label>
-                    <div style="display: flex; gap: 1.5rem; margin-top: 0.4rem;">
-                        <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                            <input type="radio" name="fulfillment_type" value="delivery" <?= $fulfillment_type === 'delivery' ? 'checked' : '' ?>> Delivery
-                        </label>
-                        <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                            <input type="radio" name="fulfillment_type" value="pickup" <?= $fulfillment_type === 'pickup' ? 'checked' : '' ?>> Pickup at Store
-                        </label>
+                    <div class="fulfil-options">
+                        <div class="fulfil-card">
+                            <input type="radio" name="fulfillment_type" value="delivery" id="fulfillment-delivery" <?= $fulfillment_type === 'delivery' ? 'checked' : '' ?>>
+                            <label for="fulfillment-delivery"><span class="radio-dot"></span>Delivery</label>
+                        </div>
+                        <div class="fulfil-card">
+                            <input type="radio" name="fulfillment_type" value="pickup" id="fulfillment-pickup" <?= $fulfillment_type === 'pickup' ? 'checked' : '' ?>>
+                            <label for="fulfillment-pickup"><span class="radio-dot"></span>Pickup at Store</label>
+                        </div>
                     </div>
                 </div>
 
-                <div id="delivery-section" style="<?= $fulfillment_type === 'pickup' ? 'display: none;' : '' ?>">
+                <div id="delivery-section" class="<?= $fulfillment_type === 'pickup' ? 'is-hidden' : '' ?>">
                     <?php if (!empty($saved_addresses)): ?>
                         <?= html_select('address_id', $address_options, ($address_id > 0 ? $address_id : 'new'), 'Delivery Address', $errors) ?>
                     <?php endif; ?>
 
-                    <div id="new-address-section" style="<?= (!empty($saved_addresses) && $address_id > 0) ? 'display: none;' : '' ?>">
+                    <div id="new-address-section" class="<?= (!empty($saved_addresses) && $address_id > 0) ? 'is-hidden' : '' ?>">
                         <?= html_textarea('shipping_address', $shipping_address, 'Shipping Address', 'Enter your delivery address', $errors) ?>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="field-voucher_code">Voucher Code (Optional)</label>
-                    <div style="display: flex; gap: 0.5rem;">
+                    <div class="inline-field-group">
                         <input type="text" name="voucher_code" id="field-voucher_code" class="form-control" value="<?= htmlspecialchars($voucher_code) ?>" placeholder="e.g. COFFEE10">
                         <button type="button" id="apply-voucher-btn" class="btn btn-secondary btn-sm">Apply</button>
                     </div>
-                    <span id="voucher-message" style="font-size: 0.85rem; display: block; margin-top: 0.3rem;"></span>
+                    <span id="voucher-message" class="voucher-message"></span>
                     <?= html_error($errors, 'voucher_code') ?>
                 </div>
 
-                <h4 style="margin-top: 1.5rem; margin-bottom: 1rem; font-family: 'Outfit', sans-serif; font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; color: var(--primary);">
-                    Payment Method
-                </h4>
+                <h4 class="panel-subheading">Payment Method</h4>
 
-                <div style="display: flex; gap: 1.5rem; margin-bottom: 1rem;">
-                    <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                        <input type="radio" name="payment_method" value="card" <?= $payment_method === 'card' ? 'checked' : '' ?>> Card
-                    </label>
-                    <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                        <input type="radio" name="payment_method" value="e_wallet" <?= $payment_method === 'e_wallet' ? 'checked' : '' ?>> E-Wallet
-                    </label>
-                    <label style="font-weight: 400; display: flex; align-items: center; gap: 0.4rem;">
-                        <input type="radio" name="payment_method" value="cash" <?= $payment_method === 'cash' ? 'checked' : '' ?>> Cash
-                    </label>
+                <div class="fulfil-options fulfil-options--tight">
+                    <div class="fulfil-card">
+                        <input type="radio" name="payment_method" value="card" id="payment-card" <?= $payment_method === 'card' ? 'checked' : '' ?>>
+                        <label for="payment-card"><span class="radio-dot"></span>Card</label>
+                    </div>
+                    <div class="fulfil-card">
+                        <input type="radio" name="payment_method" value="e_wallet" id="payment-ewallet" <?= $payment_method === 'e_wallet' ? 'checked' : '' ?>>
+                        <label for="payment-ewallet"><span class="radio-dot"></span>E-Wallet</label>
+                    </div>
+                    <div class="fulfil-card">
+                        <input type="radio" name="payment_method" value="cash" id="payment-cash" <?= $payment_method === 'cash' ? 'checked' : '' ?>>
+                        <label for="payment-cash"><span class="radio-dot"></span>Cash</label>
+                    </div>
                 </div>
 
-                <div id="card-payment-section" style="<?= $payment_method !== 'card' ? 'display: none;' : '' ?>">
-                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                <div id="card-payment-section" class="<?= $payment_method !== 'card' ? 'is-hidden' : '' ?>">
+                    <p class="checkout-disclaimer">
                         * This is a simulated university checkout. Please do NOT enter real credit card numbers.
                     </p>
                     <?= html_input('text', 'card_name', $card_name, 'Cardholder Name', 'e.g. John Doe', $errors) ?>
                     <?= html_input('text', 'card_number', $card_number, 'Credit Card Number', '1234 5678 1234 5678', $errors, ['maxlength' => '19']) ?>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="field-row-2">
                         <?= html_input('text', 'card_expiry', $card_expiry, 'Expiration Date', 'MM/YY', $errors, ['maxlength' => '5']) ?>
                         <?= html_input('password', 'card_cvv', $card_cvv, 'CVV Code', '123', $errors, ['maxlength' => '4']) ?>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-accent btn-block" style="margin-top: 1.5rem; text-align: center;">
+                <button type="submit" class="btn btn-accent btn-block checkout-submit">
                     Place Order
                 </button>
             </form>
         </section>
 
         <!-- Order Summary Sidebar -->
-        <section class="admin-panel" style="height: fit-content;">
+        <section class="admin-panel order-summary-panel">
             <h3>Order Summary</h3>
-            <ul style="list-style: none;">
-                <?php foreach ($cart_items as $item): ?>
-                    <li style="display: flex; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid var(--border-color);">
-                        <div>
-                            <strong><?= htmlspecialchars($item['name']) ?></strong><br>
-                            <span style="font-size: 0.85rem; color: var(--text-muted);">Qty: <?= $item['quantity'] ?> @ RM<?= number_format($item['unit_price'], 2) ?> each</span>
+
+            <?php foreach ($cart_items as $item): ?>
+                <div class="receipt-line">
+                    <div>
+                        <span class="item-name"><?= htmlspecialchars($item['name']) ?></span>
+                        <span class="item-meta">
+                            Qty: <?= $item['quantity'] ?> @ RM<?= number_format($item['unit_price'], 2) ?> each
                             <?php if (!empty($item['options_summary'])): ?>
-                                <br><span style="font-size: 0.8rem; color: var(--text-muted);"><?= htmlspecialchars($item['options_summary']) ?></span>
+                                <br><?= htmlspecialchars($item['options_summary']) ?>
                             <?php endif; ?>
                             <?php if (!empty($item['customization'])): ?>
-                                <br><span style="font-size: 0.8rem; color: var(--text-muted);">Note: <?= htmlspecialchars($item['customization']) ?></span>
+                                <br>Note: <?= htmlspecialchars($item['customization']) ?>
                             <?php endif; ?>
-                        </div>
-                        <span style="font-weight: 500;">RM<?= number_format($item['unit_price'] * $item['quantity'], 2) ?></span>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
+                        </span>
+                    </div>
+                    <span class="receipt-dots"></span>
+                    <span class="amount">RM<?= number_format($item['unit_price'] * $item['quantity'], 2) ?></span>
+                </div>
+            <?php endforeach; ?>
 
-            <div style="margin-top: 1.5rem; display: flex; justify-content: space-between;">
+            <div class="receipt-summary-line">
                 <span>Subtotal:</span>
                 <strong>RM<?= number_format($grand_total, 2) ?></strong>
             </div>
 
-            <div id="discount-line" style="display: <?= $discount_amount > 0 ? 'flex' : 'none' ?>; justify-content: space-between; color: var(--success); margin-top: 0.4rem;">
+            <div id="discount-line" class="receipt-summary-line receipt-summary-line--discount" style="display: <?= $discount_amount > 0 ? 'flex' : 'none' ?>;">
                 <span>Voucher Discount:</span>
                 <strong id="discount-amount">-RM<?= number_format($discount_amount, 2) ?></strong>
             </div>
 
-            <div style="margin-top: 0.8rem; font-size: 1.3rem; display: flex; justify-content: space-between; font-weight: 700; color: var(--primary-dark);">
-                <span>Total:</span>
+            <div class="receipt-total">
+                <span>Total</span>
                 <span id="grand-total-amount">RM<?= number_format($final_total, 2) ?></span>
             </div>
 
-            <div style="margin-top: 1.5rem;">
-                <a href="cart.php" class="btn btn-secondary btn-sm" style="width: 100%; text-align: center;">Modify Shopping Cart</a>
+            <div class="panel-action">
+                <a href="cart.php" class="btn btn-secondary btn-sm btn-block">Modify Shopping Cart</a>
             </div>
         </section>
 

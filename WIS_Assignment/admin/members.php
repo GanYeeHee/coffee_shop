@@ -96,7 +96,7 @@ unset($_SESSION['flash_error']);
     <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
 <?php endif; ?>
 
-<div style="display: grid; grid-template-columns: <?= ($expand_user) ? '1.5fr 1fr' : '1fr' ?>; gap: 2.5rem; align-items: start;">
+<div class="list-detail-columns" style="grid-template-columns: <?= ($expand_user) ? '1.5fr 1fr' : '1fr' ?>;">
     
     <!-- Left Column: User Table List -->
     <section class="admin-panel">
@@ -141,13 +141,13 @@ unset($_SESSION['flash_error']);
                                     </span>
                                 </td>
                                 <td style="display: flex; gap: 0.4rem;">
-                                    <a href="members.php?detail_id=<?= $u['id'] ?><?= ($search !== '') ? '&q=' . urlencode($search) : '' ?>" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Details</a>
+                                    <a href="members.php?detail_id=<?= $u['id'] ?><?= ($search !== '') ? '&q=' . urlencode($search) : '' ?>" class="btn btn-secondary btn-sm btn-xs">Details</a>
                                     
                                     <?php if ($u['id'] !== $_SESSION['user_id']): ?>
                                         <form action="members.php" method="POST" style="margin: 0;">
                                             <input type="hidden" name="action" value="toggle_block">
                                             <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                                            <button type="submit" class="btn <?= ($u['status'] === 'active') ? 'btn-danger' : 'btn-primary' ?> btn-sm confirm-action" data-confirm-message="Are you sure you want to <?= ($u['status'] === 'active') ? 'BLOCK' : 'UNBLOCK' ?> user '<?= htmlspecialchars($u['username']) ?>'?" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+                                            <button type="submit" class="btn <?= ($u['status'] === 'active') ? 'btn-danger' : 'btn-primary' ?> btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to <?= ($u['status'] === 'active') ? 'BLOCK' : 'UNBLOCK' ?> user '<?= htmlspecialchars($u['username']) ?>'?">
                                                 <?= ($u['status'] === 'active') ? 'Block' : 'Unblock' ?>
                                             </button>
                                         </form>

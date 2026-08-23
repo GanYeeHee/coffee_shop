@@ -359,7 +359,7 @@ unset($_SESSION['flash_error']);
 ?>
 
 <div style="max-width: 1000px; margin: 0 auto;">
-    <h1 style="margin-bottom: 2rem;">My Profile</h1>
+    <h1 class="page-title">My Profile</h1>
     
     <?php if ($success_message): ?>
         <div class="alert alert-success"><?= htmlspecialchars($success_message) ?></div>
@@ -377,8 +377,8 @@ unset($_SESSION['flash_error']);
         <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
     <?php endif; ?>
 
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 3rem; align-items: start;">
-        
+    <div class="admin-columns">
+
         <!-- Profile Info Form -->
         <section class="admin-panel">
             <h3>Update Profile Details</h3>
@@ -404,10 +404,7 @@ unset($_SESSION['flash_error']);
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" class="form-control" value="<?= htmlspecialchars($user['username']) ?>" readonly style="background-color: var(--bg-cream); cursor: not-allowed;">
-                </div>
+                <?= html_input('text', 'username_display', $user['username'], 'Username', '', [], ['readonly' => 'readonly', 'style' => 'background-color: var(--bg-cream); cursor: not-allowed;']) ?>
                 
                 <?= html_input('text', 'full_name', $user['full_name'], 'Full Name', 'Enter your full name', $errors) ?>
                 <?= html_input('email', 'email', $user['email'], 'Email Address', 'Enter your email address', $errors) ?>
@@ -419,7 +416,7 @@ unset($_SESSION['flash_error']);
                     <?= html_error($errors, 'security_questions') ?>
                     <?php foreach ($questions as $q_slug => $q_text): $checked = in_array($q_slug, $selected_questions); ?>
                         <div class="sec-question-row" style="margin-bottom: 0.75rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 400;">
+                            <label class="check-label">
                                 <input type="checkbox" name="security_questions[]" value="<?= htmlspecialchars($q_slug) ?>" class="sec-question-checkbox" <?= $checked ? 'checked' : '' ?>>
                                 <?= htmlspecialchars($q_text) ?>
                             </label>
@@ -450,7 +447,7 @@ unset($_SESSION['flash_error']);
     </div>
 
     <!-- Saved Addresses -->
-    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 3rem; align-items: start; margin-top: 3rem;">
+    <div class="list-detail-columns" style="grid-template-columns: 1.5fr 1fr; margin-top: 3rem;">
 
         <section class="admin-panel">
             <h3>My Saved Addresses</h3>
@@ -480,18 +477,18 @@ unset($_SESSION['flash_error']);
                                         <?php endif; ?>
                                     </td>
                                     <td style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
-                                        <a href="profile.php?addr_action=edit&addr_id=<?= $a['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Edit</a>
+                                        <a href="profile.php?addr_action=edit&addr_id=<?= $a['id'] ?>" class="btn btn-secondary btn-sm btn-xs">Edit</a>
                                         <?php if (!$a['is_default']): ?>
                                             <form action="profile.php" method="POST" style="margin: 0;">
                                                 <input type="hidden" name="action" value="set_default_address">
                                                 <input type="hidden" name="addr_id" value="<?= $a['id'] ?>">
-                                                <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Set Default</button>
+                                                <button type="submit" class="btn btn-primary btn-sm btn-xs">Set Default</button>
                                             </form>
                                         <?php endif; ?>
                                         <form action="profile.php" method="POST" style="margin: 0;">
                                             <input type="hidden" name="action" value="delete_address">
                                             <input type="hidden" name="addr_id" value="<?= $a['id'] ?>">
-                                            <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Delete the '<?= htmlspecialchars($a['address_label']) ?>' address?" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Delete</button>
+                                            <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Delete the '<?= htmlspecialchars($a['address_label']) ?>' address?">Delete</button>
                                         </form>
                                     </td>
                                 </tr>

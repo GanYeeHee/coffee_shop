@@ -123,8 +123,8 @@ unset($_SESSION['flash_error']);
         <div class="detail-price">RM<?= number_format($product['price'], 2) ?></div>
 
         <?php if ($rating_summary['review_count'] > 0): ?>
-            <div style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.95rem;">
-                ★ <?= number_format($rating_summary['avg_rating'], 1) ?> (<?= $rating_summary['review_count'] ?> review<?= $rating_summary['review_count'] == 1 ? '' : 's' ?>)
+            <div class="star-rating" style="margin-bottom: 1rem;">
+                <span class="stars">★</span> <?= number_format($rating_summary['avg_rating'], 1) ?> (<?= $rating_summary['review_count'] ?> review<?= $rating_summary['review_count'] == 1 ? '' : 's' ?>)
             </div>
         <?php endif; ?>
 
@@ -134,17 +134,17 @@ unset($_SESSION['flash_error']);
         <div style="margin-bottom: 1.5rem;">
             <strong>Availability: </strong>
             <?php if ($product['stock'] == 0): ?>
-                <span class="badge badge-cancelled">Temporarily Sold Out</span>
+                <span class="stock-badge inline out-of-stock">Temporarily Sold Out</span>
             <?php elseif ($product['stock'] <= 5): ?>
-                <span class="badge badge-pending">Low Stock (Only <?= $product['stock'] ?> left!)</span>
+                <span class="stock-badge inline low-stock">Low Stock (Only <?= $product['stock'] ?> left!)</span>
             <?php else: ?>
-                <span class="badge badge-active">In Stock (<?= $product['stock'] ?> units available)</span>
+                <span class="stock-badge inline in-stock">In Stock (<?= $product['stock'] ?> units available)</span>
             <?php endif; ?>
         </div>
 
         <?php if (!is_admin()): ?>
             <?php if ($edit_cart_id): ?>
-                <div class="alert alert-warning">Editing an item already in your cart. <a href="cart.php">Cancel</a></div>
+                <div class="alert alert-info">Editing an item already in your cart. <a href="cart.php">Cancel</a></div>
             <?php endif; ?>
             <form action="cart.php" method="POST" class="detail-action-form">
                 <input type="hidden" name="action" value="<?= $edit_cart_id ? 'edit' : 'add' ?>">
@@ -171,13 +171,10 @@ unset($_SESSION['flash_error']);
                         <?= html_select("options[{$group['id']}]", $value_options, $selected_value, $group['name'] . ($group['is_required'] ? ' *' : ''), [], $group['is_required'] ? ['required' => 'required'] : []) ?>
                     <?php endforeach; ?>
 
-                    <div class="form-group">
-                        <label for="field-customization">Customization (Optional)</label>
-                        <input type="text" name="customization" id="field-customization" class="form-control" value="<?= htmlspecialchars($edit_customization) ?>" placeholder="e.g. Oat milk, Extra shot, Less ice">
-                    </div>
+                    <?= html_input('text', 'customization', $edit_customization, 'Customization (Optional)', 'e.g. Oat milk, Extra shot, Less ice') ?>
 
                     <div class="quantity-picker">
-                        <label for="quantity">Quantity:</label>
+                        <label for="field-quantity">Quantity:</label>
                         <input type="number" name="quantity" id="field-quantity" class="form-control" value="<?= $edit_quantity ?>" min="1" max="<?= $product['stock'] ?>" required>
                     </div>
 
@@ -218,7 +215,7 @@ unset($_SESSION['flash_error']);
             <div style="padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <strong><?= htmlspecialchars($r['username']) ?></strong>
-                    <span style="color: var(--accent); font-weight: 600;">★ <?= $r['rating'] ?>/5</span>
+                    <span class="star-rating"><span class="stars">★</span> <?= $r['rating'] ?>/5</span>
                 </div>
                 <?php if (!empty($r['comment'])): ?>
                     <p style="margin-top: 0.4rem; color: var(--text-muted); font-size: 0.95rem;"><?= nl2br(htmlspecialchars($r['comment'])) ?></p>

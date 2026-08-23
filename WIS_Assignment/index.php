@@ -39,21 +39,28 @@ $products = $prod_stmt->fetchAll();
 
 <!-- Hero Banner Section -->
 <section class="hero">
-    <h1>Experience Coffee Perfection</h1>
-    <p>Freshly roasted specialty beans, brewed to order by our expert baristas. Order online and skip the queue!</p>
-    
-    <div class="search-container" style="max-width: 500px; margin: 0 auto;">
+    <div class="hero-content">
+        <span class="hero-eyebrow">Freshly roasted, every morning</span>
+        <h1>Experience Coffee Perfection</h1>
+        <div class="hero-actions">
+            <a href="#products" class="btn btn-accent">View the Menu</a>
+        </div>
+    </div>
+</section>
+
+<div class="quick-search">
+    <div class="search-container">
         <form action="index.php" method="GET" class="search-form">
             <?php if ($cat_id > 0): ?>
                 <input type="hidden" name="cat_id" value="<?= $cat_id ?>">
             <?php endif; ?>
-            <input type="text" name="q" class="form-control" placeholder="Search for your favorite brew..." value="<?= htmlspecialchars($search) ?>">
+            <input type="text" name="q" class="form-control" maxlength="100" placeholder="Search for your favorite brew..." value="<?= htmlspecialchars($search) ?>">
             <button type="submit" class="btn btn-accent">Search</button>
         </form>
     </div>
-</section>
+</div>
 
-<div class="shop-layout">
+<div class="shop-layout" id="products">
     <!-- Sidebar Filters -->
     <aside class="sidebar">
         <h3>Categories</h3>
@@ -75,7 +82,7 @@ $products = $prod_stmt->fetchAll();
 
     <!-- Main Products Listing -->
     <section class="products-section">
-        <h2 style="margin-bottom: 1.5rem; font-size: 1.8rem;">
+        <h2 class="section-title">
             <?php 
             if ($cat_id > 0) {
                 // Find category name
@@ -97,7 +104,7 @@ $products = $prod_stmt->fetchAll();
         </h2>
 
         <?php if (empty($products)): ?>
-            <div class="alert alert-warning">
+            <div class="alert alert-info">
                 No products found matching your criteria. Try adjusting your search query or filters.
             </div>
         <?php else: ?>
@@ -111,7 +118,9 @@ $products = $prod_stmt->fetchAll();
                             ?>
                                 <img src="<?= htmlspecialchars($photo_path) ?>" class="product-img" alt="<?= htmlspecialchars($product['name']) ?>">
                             <?php else: ?>
-                                <div class="product-img-placeholder">☕</div>
+                                <div class="product-img-placeholder">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6 10h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-5z"/><path d="M17 11.5h1.2a2.3 2.3 0 0 1 0 4.6H17"/></svg>
+                                </div>
                             <?php endif; ?>
                             
                             <!-- Stock Indicators -->
@@ -132,7 +141,7 @@ $products = $prod_stmt->fetchAll();
                                 </a>
                             </h3>
                             <?php if ($product['review_count'] > 0): ?>
-                                <span style="font-size: 0.85rem; color: var(--text-muted);">★ <?= number_format($product['avg_rating'], 1) ?> (<?= $product['review_count'] ?>)</span>
+                                <span class="star-rating"><span class="stars">★</span> <?= number_format($product['avg_rating'], 1) ?> (<?= $product['review_count'] ?>)</span>
                             <?php endif; ?>
                             <div class="product-spacer"></div>
                             
@@ -147,7 +156,7 @@ $products = $prod_stmt->fetchAll();
                                     <?php elseif ($product['stock'] > 0): ?>
                                         <a href="product_detail.php?id=<?= $product['id'] ?>" class="btn btn-accent btn-sm">Add to Cart</a>
                                     <?php else: ?>
-                                        <button class="btn btn-secondary btn-sm" disabled style="cursor: not-allowed; opacity: 0.6;">Unavailable</button>
+                                        <button class="btn btn-secondary btn-sm" disabled>Unavailable</button>
                                     <?php endif; ?>
                                 <?php endif; ?>
                             </div>
@@ -158,6 +167,14 @@ $products = $prod_stmt->fetchAll();
         <?php endif; ?>
     </section>
 </div>
+
+<section class="story-band">
+    <div class="story-band-content">
+        <span class="hero-eyebrow">Behind the counter</span>
+        <h2>Brewed to Order, One Cup at a Time</h2>
+        <p>Every pour-over is timed and weighed by hand &mdash; no batch brewing, no shortcuts. It's slower, but it's the only way we'll serve it.</p>
+    </div>
+</section>
 
 <?php
 require_once __DIR__ . '/includes/footer.php';

@@ -194,7 +194,7 @@ unset($_SESSION['flash_error']);
                 $tab_qs = http_build_query($tab_params);
             ?>
             <li>
-                <a href="orders.php<?= $tab_qs !== '' ? '?' . $tab_qs : '' ?>" class="btn btn-secondary btn-sm <?= ($filter_status === $status_opt) ? 'btn-accent' : '' ?>" style="padding: 0.5rem 1rem; border-radius: 50px;">
+                <a href="orders.php<?= $tab_qs !== '' ? '?' . $tab_qs : '' ?>" class="btn btn-secondary btn-sm status-tab <?= ($filter_status === $status_opt) ? 'btn-accent' : '' ?>">
                     <?= $status_opt ?>
                 </a>
             </li>
@@ -202,7 +202,7 @@ unset($_SESSION['flash_error']);
     </ul>
 </div>
 
-<div style="display: grid; grid-template-columns: <?= ($expand_order) ? '1.2fr 1fr' : '1fr' ?>; gap: 2.5rem; align-items: start;">
+<div class="list-detail-columns" style="grid-template-columns: <?= ($expand_order) ? '1.5fr 1fr' : '1fr' ?>;">
     
     <!-- Left Column: Orders Registry Table -->
     <section class="admin-panel">
@@ -235,24 +235,24 @@ unset($_SESSION['flash_error']);
                                     </span>
                                 </td>
                                 <td style="display: flex; gap: 0.3rem;">
-                                    <a href="orders.php?<?= $base_qs !== '' ? $base_qs . '&' : '' ?>detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Details</a>
+                                    <a href="orders.php?<?= $base_qs !== '' ? $base_qs . '&' : '' ?>detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm btn-xs">Details</a>
                                     
                                     <?php if ($ord['status'] === 'Pending'): ?>
                                         <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                                             <input type="hidden" name="action" value="mark_processing">
                                             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-accent btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Accept</button>
+                                            <button type="submit" class="btn btn-accent btn-sm btn-xs">Accept</button>
                                         </form>
                                         <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                                             <input type="hidden" name="action" value="cancel_order">
                                             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $ord['id'] ?>? Stock will be refunded." style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Cancel</button>
+                                            <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $ord['id'] ?>? Stock will be refunded.">Cancel</button>
                                         </form>
                                     <?php elseif ($ord['status'] === 'Processing'): ?>
                                         <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
                                             <input type="hidden" name="action" value="mark_completed">
                                             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; background-color: var(--success);">Complete</button>
+                                            <button type="submit" class="btn btn-primary btn-sm btn-xs" style="background-color: var(--success);">Complete</button>
                                         </form>
                                     <?php endif; ?>
                                 </td>

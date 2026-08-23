@@ -1,5 +1,38 @@
 $(document).ready(function() {
 
+    // 0. Homepage nav: starts transparent over the hero photo, turns solid on scroll
+    var $header = $('#site-header');
+    if ($header.hasClass('nav-transparent')) {
+        $(window).on('scroll', function () {
+            $header.toggleClass('solid', $(window).scrollTop() > 40);
+        }).trigger('scroll');
+    }
+
+    // 0c. The sticky header still reserves its own space in normal flow, so a
+    // CSS-only negative margin can't make the hero sit truly behind it - only
+    // *next to* it. Pull the hero up by exactly the header's height (plus the
+    // page's own top padding) so the header genuinely overlays the photo.
+    var $hero = $('.hero');
+    if ($hero.length) {
+        var applyHeroOverlap = function () {
+            var headerHeight = $header.outerHeight();
+            var mainPaddingTop = parseFloat($('main').css('padding-top')) || 0;
+            $hero.css('margin-top', -(headerHeight + mainPaddingTop) + 'px');
+        };
+        applyHeroOverlap();
+        var resizeTimer;
+        $(window).on('resize', function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(applyHeroOverlap, 150);
+        });
+    }
+
+    // 0b. Footer newsletter signup has no backend yet - just acknowledge the submission
+    $(document).on('submit', '#newsletter-form', function (e) {
+        e.preventDefault();
+        $(this).find('input[type=email]').val('').attr('placeholder', 'Thanks for joining!');
+    });
+
     // 1. AJAX: Cart Quantity Stepper (+/-) with Auto-Save
     $(document).on('click', '.qty-btn', function () {
         var $btn = $(this);
@@ -135,8 +168,8 @@ $(document).ready(function() {
             success: function (response) {
                 if (response.success) {
                     $('#discount-line').css('display', 'flex');
-                    $('#discount-amount').text('-$' + response.discount_amount.toFixed(2));
-                    $('#grand-total-amount').text('$' + response.new_total.toFixed(2));
+                    $('#discount-amount').text('-RM' + response.discount_amount.toFixed(2));
+                    $('#grand-total-amount').text('RM' + response.new_total.toFixed(2));
                     $msg.text('Voucher applied!').css('color', 'var(--success)');
                 } else {
                     $('#discount-line').hide();

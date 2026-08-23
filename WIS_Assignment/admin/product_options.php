@@ -198,7 +198,7 @@ unset($_SESSION['flash_error']);
                     <label>
                         <input type="checkbox" name="templates[]" value="<?= $template['id'] ?>" style="width: auto; margin-right: 0.5rem;" <?= $template['is_applied'] ? 'checked' : '' ?>>
                         <?= htmlspecialchars($template['name']) ?>
-                        <?= $template['is_required'] ? '<span class="badge badge-active">Required</span>' : '<span class="badge badge-processing">Optional</span>' ?>
+                        <?= $template['is_required'] ? '<span class="badge badge-flag-yes">Required</span>' : '<span class="badge badge-flag-no">Optional</span>' ?>
                     </label>
                 </div>
             <?php endforeach; ?>
@@ -218,9 +218,9 @@ unset($_SESSION['flash_error']);
                 <h3>
                     <?= htmlspecialchars($group['name']) ?>
                     <?php if ($group['is_required']): ?>
-                        <span class="badge badge-active">Required</span>
+                        <span class="badge badge-flag-yes">Required</span>
                     <?php else: ?>
-                        <span class="badge badge-processing">Optional</span>
+                        <span class="badge badge-flag-no">Optional</span>
                     <?php endif; ?>
                 </h3>
                 <a href="product_options.php?product_id=<?= $product_id ?>&action=delete_group&group_id=<?= $group['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Delete option group '<?= htmlspecialchars($group['name']) ?>' and all its values?">Delete Group</a>

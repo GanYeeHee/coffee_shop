@@ -83,16 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form action="login.php" method="POST" novalidate>
         <?= html_input('text', 'username', $username, 'Username or Email', 'Enter your username or email', $errors) ?>
         
-        <div style="position: relative;">
-            <?= html_input('password', 'password', '', 'Password', 'Enter your password', $errors) ?>
-            <div style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
-                <a href="password_reset.php" style="font-size: 0.85rem; color: var(--text-muted);">Forgot password?</a>
-                &middot;
-                <a href="email_reset_request.php" style="font-size: 0.85rem; color: var(--text-muted);">Reset via email</a>
-            </div>
+        <?= html_input('password', 'password', '', 'Password', 'Enter your password', $errors) ?>
+        <div class="auth-links text-right">
+            <a href="password_reset.php">Forgot password?</a>
+            &middot;
+            <a href="email_reset_request.php">Reset via email</a>
         </div>
-        
-        <button type="submit" class="btn btn-accent btn-block" style="margin-top: 1rem;">Log In</button>
+
+        <button type="submit" class="btn btn-accent btn-block checkout-submit">Log In</button>
     </form>
     
     <div class="auth-footer">

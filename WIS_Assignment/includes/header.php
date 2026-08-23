@@ -13,6 +13,11 @@ function nav_active(string $page, bool $in_admin_dir, string $current_page, bool
     return ($in_admin_dir === $is_admin_dir && $current_page === $page) ? ' active' : '';
 }
 
+// The homepage hero is a full-bleed photo, so the nav starts transparent
+// there and turns solid on scroll (see assets/js/app.js); every other page
+// has no hero to sit over, so the nav is solid from the start.
+$has_hero = ($current_page === 'index.php' && !$is_admin_dir);
+
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/html_helpers.php';
@@ -44,10 +49,13 @@ if (is_logged_in() && is_member() && isset($pdo)) {
 </head>
 <body>
 
-<header>
+<header id="site-header" class="<?= $has_hero ? 'nav-transparent' : '' ?>">
     <div class="nav-container">
         <div class="logo">
-            <a href="<?= $base_path ?>index.php">☕ The Daily <span>Grind</span></a>
+            <a href="<?= $base_path ?>index.php">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-5z"/><path d="M17 11.5h1.2a2.3 2.3 0 0 1 0 4.6H17"/><path d="M9 5c-.5.8-.5 1.3 0 2.1M13 5c-.5.8-.5 1.3 0 2.1" stroke-width="1.2"/></svg>
+                The Daily <em>Grind</em>
+            </a>
         </div>
         
         <nav>
@@ -69,6 +77,7 @@ if (is_logged_in() && is_member() && isset($pdo)) {
                     <li class="nav-item"><a href="<?= $base_path ?>orders.php" class="<?= trim(nav_active('orders.php', false, $current_page, $is_admin_dir)) ?>">My Orders</a></li>
                     <li class="nav-item">
                         <a href="<?= $base_path ?>cart.php" class="cart-link<?= nav_active('cart.php', false, $current_page, $is_admin_dir) ?>">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.4 9.2a2 2 0 0 1-2 1.8H8.4a2 2 0 0 1-2-1.8L5 8z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/></svg>
                             Cart
                             <?php if ($cart_count > 0): ?>
                                 <span class="cart-count"><?= $cart_count ?></span>
@@ -94,7 +103,7 @@ if (is_logged_in() && is_member() && isset($pdo)) {
                             <?= htmlspecialchars($current_user['username']) ?>
                         </a>
                     </li>
-                    <li class="nav-item"><a href="<?= $base_path ?>logout.php" class="nav-btn">Logout</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>logout.php" class="nav-btn nav-btn-ghost">Logout</a></li>
                 <?php else: ?>
                     <!-- Guest links -->
                     <li class="nav-item"><a href="<?= $base_path ?>login.php">Login</a></li>

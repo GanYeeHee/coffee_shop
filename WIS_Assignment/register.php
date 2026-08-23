@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?= html_error($errors, 'security_questions') ?>
             <?php foreach ($questions as $q_slug => $q_text): $checked = in_array($q_slug, $selected_questions); ?>
                 <div class="sec-question-row" style="margin-bottom: 0.75rem;">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 400;">
+                    <label class="check-label">
                         <input type="checkbox" name="security_questions[]" value="<?= htmlspecialchars($q_slug) ?>" class="sec-question-checkbox" <?= $checked ? 'checked' : '' ?>>
                         <?= htmlspecialchars($q_text) ?>
                     </label>

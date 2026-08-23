@@ -399,16 +399,16 @@ unset($_SESSION['flash_error']);
                                 <td><?= $p['stock'] ?></td>
                                 <td>
                                     <?php if ($p['stock'] == 0): ?>
-                                        <span class="badge badge-cancelled">Sold Out</span>
+                                        <span class="stock-badge inline out-of-stock">Sold Out</span>
                                     <?php elseif ($p['stock'] <= 5): ?>
-                                        <span class="badge badge-pending">Low Stock</span>
+                                        <span class="stock-badge inline low-stock">Low Stock</span>
                                     <?php else: ?>
-                                        <span class="badge badge-active">In Stock</span>
+                                        <span class="stock-badge inline in-stock">In Stock</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Edit</a>
-                                    <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.6rem;">Options</a>
+                                    <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
+                                    <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Options</a>
                                     <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete product '<?= htmlspecialchars($p['name']) ?>'? This will permanently delete the item and all its image files from storage.">Delete</a>
                                 </td>
                             </tr>
@@ -490,14 +490,14 @@ unset($_SESSION['flash_error']);
                                 <input type="hidden" name="action" value="set_primary">
                                 <input type="hidden" name="image_id" value="<?= $img['id'] ?>">
                                 <input type="hidden" name="product_id" value="<?= $id ?>">
-                                <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Set Primary</button>
+                                <button type="submit" class="btn btn-secondary btn-sm btn-xs">Set Primary</button>
                             </form>
                         <?php endif; ?>
                         <form method="POST" style="margin-top: 0.3rem;">
                             <input type="hidden" name="action" value="delete_image">
                             <input type="hidden" name="image_id" value="<?= $img['id'] ?>">
                             <input type="hidden" name="product_id" value="<?= $id ?>">
-                            <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Delete this photo?" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Delete</button>
+                            <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Delete this photo?">Delete</button>
                         </form>
                     </div>
                 <?php endforeach; ?>
