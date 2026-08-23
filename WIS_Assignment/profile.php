@@ -11,9 +11,18 @@ if (!$user) {
     exit;
 }
 
-$sec_stmt = $pdo->prepare("SELECT security_question FROM user_security_answers WHERE user_id = ? LIMIT 1");
+// Predefined security question options
+$questions = [
+    'pet' => 'What was the name of your first pet?',
+    'coffee' => 'What is your favorite coffee bean?',
+    'city' => 'What city were you born in?',
+    'nickname' => 'What was your childhood nickname?'
+];
+
+$sec_stmt = $pdo->prepare("SELECT security_question FROM user_security_answers WHERE user_id = ?");
 $sec_stmt->execute([$user['id']]);
-$current_security_question = $sec_stmt->fetchColumn() ?: '';
+$current_questions = $sec_stmt->fetchAll(PDO::FETCH_COLUMN);
+$selected_questions = array_keys(array_intersect($questions, $current_questions));
 
 $errors = [];
 $success_message = '';
@@ -39,20 +48,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $full_name = $_POST['full_name'] ?? '';
         $email = $_POST['email'] ?? '';
         $phone = $_POST['phone'] ?? '';
-        $security_question = $_POST['security_question'] ?? '';
-        $security_answer = $_POST['security_answer'] ?? '';
-        
+        $selected_questions = $_POST['security_questions'] ?? [];
+        $security_answers = $_POST['security_answers'] ?? [];
+
         // Validation
         $req_fields = [
             'full_name' => 'Full Name',
-            'email' => 'Email',
-            'security_question' => 'Security Question'
+            'email' => 'Email'
         ];
         $errors = validate_required($_POST, $req_fields);
 
-        // Leaving the answer blank keeps the current one, but switching questions requires a fresh answer
-        if (trim($security_answer) === '' && $current_security_question !== '' && $security_question !== $current_security_question) {
-            $errors['security_answer'] = "Please provide an answer for your new security question.";
+        if (empty($selected_questions)) {
+            $errors['security_questions'] = "Please select at least one security question.";
+        } else {
+            foreach ($selected_questions as $q_slug) {
+                if (!isset($questions[$q_slug])) {
+                    $errors['security_questions'] = "Invalid security question selected.";
+                    continue;
+                }
+                // Leaving the answer blank keeps the current answer, but a newly-selected question requires a fresh answer
+                $is_new_question = !in_array($questions[$q_slug], $current_questions);
+                if ($is_new_question && trim($security_answers[$q_slug] ?? '') === '') {
+                    $errors['security_answer_' . $q_slug] = "Please provide an answer for this new security question.";
+                }
+            }
         }
 
         if (empty($errors['email'])) {
@@ -119,22 +138,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $user['id']
                     ]);
 
-                    // Only touch the security answer when a new one was actually submitted
-                    if (trim($security_answer) !== '') {
-                        $answer_hash = password_hash(strtolower(trim($security_answer)), PASSWORD_DEFAULT);
-                        // UNIQUE KEY is (user_id, security_question); drop any stale row for a different question first
-                        $pdo->prepare("DELETE FROM user_security_answers WHERE user_id = ? AND security_question != ?")
-                            ->execute([$user['id'], $security_question]);
-                        $pdo->prepare("INSERT INTO user_security_answers (user_id, security_question, answer_hash) VALUES (?, ?, ?)
-                                       ON DUPLICATE KEY UPDATE security_question = VALUES(security_question), answer_hash = VALUES(answer_hash)")
-                            ->execute([$user['id'], $security_question, $answer_hash]);
+                    // Upsert each selected question; only overwrite the answer hash when a new answer was actually submitted
+                    $sec_upsert = $pdo->prepare("INSERT INTO user_security_answers (user_id, security_question, answer_hash) VALUES (?, ?, ?)
+                                   ON DUPLICATE KEY UPDATE answer_hash = VALUES(answer_hash)");
+                    foreach ($selected_questions as $q_slug) {
+                        $answer = trim($security_answers[$q_slug] ?? '');
+                        if ($answer !== '') {
+                            $answer_hash = password_hash(strtolower($answer), PASSWORD_DEFAULT);
+                            $sec_upsert->execute([$user['id'], $questions[$q_slug], $answer_hash]);
+                        }
                     }
+
+                    // Remove any previously-set question that was unchecked
+                    $selected_texts = array_map(function ($q_slug) use ($questions) {
+                        return $questions[$q_slug];
+                    }, $selected_questions);
+                    $placeholders = implode(',', array_fill(0, count($selected_texts), '?'));
+                    $pdo->prepare("DELETE FROM user_security_answers WHERE user_id = ? AND security_question NOT IN ($placeholders)")
+                        ->execute(array_merge([$user['id']], $selected_texts));
 
                     $pdo->commit();
                     $success_message = "Profile updated successfully!";
                     // Refresh user data
                     $user = get_logged_in_user($pdo);
-                    $current_security_question = $security_question;
+                    $current_questions = $selected_texts;
                 } catch (PDOException $e) {
                     $pdo->rollBack();
                     $errors['general'] = "Failed to update profile. DB Error: " . $e->getMessage();
@@ -329,12 +356,6 @@ unset($_SESSION['flash_success']);
 $flash_error = $_SESSION['flash_error'] ?? null;
 unset($_SESSION['flash_error']);
 
-$questions = [
-    'What was the name of your first pet?' => 'What was the name of your first pet?',
-    'What is your favorite coffee bean?' => 'What is your favorite coffee bean?',
-    'What city were you born in?' => 'What city were you born in?',
-    'What was your childhood nickname?' => 'What was your childhood nickname?'
-];
 ?>
 
 <div style="max-width: 1000px; margin: 0 auto;">
@@ -392,9 +413,22 @@ $questions = [
                 <?= html_input('email', 'email', $user['email'], 'Email Address', 'Enter your email address', $errors) ?>
                 <?= html_input('text', 'phone', $user['phone'] ?? '', 'Phone Number', 'e.g., 0123456789', $errors) ?>
                 
-                <?= html_select('security_question', $questions, $current_security_question, 'Security Question (For recovery)', $errors) ?>
-                <?= html_input('text', 'security_answer', '', 'Security Answer', 'Leave blank to keep your current answer', $errors) ?>
-                
+                <div class="form-group">
+                    <label>Security Question(s) (For recovery)</label>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: -0.25rem 0 0.5rem;">Select at least one. Leave a question's answer blank to keep its current answer.</p>
+                    <?= html_error($errors, 'security_questions') ?>
+                    <?php foreach ($questions as $q_slug => $q_text): $checked = in_array($q_slug, $selected_questions); ?>
+                        <div class="sec-question-row" style="margin-bottom: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 400;">
+                                <input type="checkbox" name="security_questions[]" value="<?= htmlspecialchars($q_slug) ?>" class="sec-question-checkbox" <?= $checked ? 'checked' : '' ?>>
+                                <?= htmlspecialchars($q_text) ?>
+                            </label>
+                            <input type="text" name="security_answers[<?= htmlspecialchars($q_slug) ?>]" value="" class="form-control sec-question-answer" placeholder="Leave blank to keep current answer" style="margin-top: 0.4rem;<?= $checked ? '' : ' display:none;' ?>">
+                            <?= html_error($errors, 'security_answer_' . $q_slug) ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
                 <button type="submit" class="btn btn-accent" style="margin-top: 1rem;">Save Changes</button>
             </form>
         </section>

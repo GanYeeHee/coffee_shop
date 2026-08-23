@@ -111,7 +111,17 @@ $(document).ready(function() {
         $('#new-address-section').toggle($(this).val() === 'new');
     });
 
-    // 9. Checkout: Apply Voucher Code (AJAX preview - server always re-validates on submit)
+    // 9. Register/Profile: Toggle a security question's answer field when its checkbox is checked
+    $(document).on('change', '.sec-question-checkbox', function () {
+        var $answer = $(this).closest('.sec-question-row').find('.sec-question-answer');
+        if (this.checked) {
+            $answer.show();
+        } else {
+            $answer.hide().val('');
+        }
+    });
+
+    // 10. Checkout: Apply Voucher Code (AJAX preview - server always re-validates on submit)
     $(document).on('click', '#apply-voucher-btn', function (e) {
         e.preventDefault();
         var code = $('#field-voucher_code').val();

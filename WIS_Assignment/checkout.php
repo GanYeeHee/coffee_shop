@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
+require_once __DIR__ . '/includes/mailer.php';
 
 // AJAX: live voucher preview. Cosmetic only - the real discount is always
 // recomputed server-side on submission below, never trusted from the client.
@@ -265,6 +266,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $clear_cart_stmt->execute([$user_id]);
 
             $pdo->commit();
+
+            // Send order confirmation email (best-effort; must never block checkout success)
+            try {
+                $mail = get_mail();
+                $mail->addAddress($current_user['email'] ?? '', $current_user['full_name'] ?? '');
+                $mail->Subject = "Order Confirmation #{$order_id} - The Daily Grind";
+                $mail->isHTML(true);
+
+                $items_html = '';
+                foreach ($cart_items as $item) {
+                    $items_html .= '<tr>'
+                        . '<td style="padding:6px 8px;border-bottom:1px solid #eee;">' . htmlspecialchars($item['name'])
+                        . (!empty($item['options_summary']) ? '<br><span style="font-size:12px;color:#777;">' . htmlspecialchars($item['options_summary']) . '</span>' : '')
+                        . (!empty($item['customization']) ? '<br><span style="font-size:12px;color:#777;">Note: ' . htmlspecialchars($item['customization']) . '</span>' : '')
+                        . '</td>'
+                        . '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;">' . intval($item['quantity']) . '</td>'
+                        . '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">RM' . number_format($item['unit_price'] * $item['quantity'], 2) . '</td>'
+                        . '</tr>';
+                }
+
+                $fulfillment_html = $fulfillment_type === 'delivery'
+                    ? '<p><strong>Deliver To:</strong><br>' . nl2br(htmlspecialchars($resolved_shipping_address)) . '</p>'
+                    : '<p><strong>Fulfillment:</strong> Pickup at Store</p>';
+
+                $discount_html = $discount_amount > 0
+                    ? '<tr><td colspan="2" style="padding:4px 8px;text-align:right;">Voucher Discount:</td><td style="padding:4px 8px;text-align:right;">-RM' . number_format($discount_amount, 2) . '</td></tr>'
+                    : '';
+
+                $mail->Body = "
+                    <p>Hi " . htmlspecialchars($current_user['full_name'] ?? '') . ",</p>
+                    <p>Thank you for your order! Here is your receipt for Order #{$order_id}.</p>
+                    <table style=\"border-collapse:collapse;width:100%;max-width:500px;\">
+                        <thead>
+                            <tr>
+                                <th style=\"padding:6px 8px;text-align:left;border-bottom:2px solid #333;\">Item</th>
+                                <th style=\"padding:6px 8px;text-align:center;border-bottom:2px solid #333;\">Qty</th>
+                                <th style=\"padding:6px 8px;text-align:right;border-bottom:2px solid #333;\">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {$items_html}
+                            {$discount_html}
+                            <tr>
+                                <td colspan=\"2\" style=\"padding:6px 8px;text-align:right;font-weight:bold;\">Total:</td>
+                                <td style=\"padding:6px 8px;text-align:right;font-weight:bold;\">RM" . number_format($final_total, 2) . "</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    {$fulfillment_html}
+                    <p><strong>Payment Method:</strong> " . htmlspecialchars(ucfirst(str_replace('_', ' ', $payment_method))) . "</p>
+                    <p>We'll notify you once your order is being prepared. You can also view this receipt anytime under My Orders.</p>
+                ";
+
+                $mail->send();
+            } catch (\Exception $e) {
+                // Swallow send failures so a flaky mail server never blocks a placed order
+            }
 
             // Redirect with success message
             $_SESSION['flash_success'] = "Thank you! Your order #{$order_id} has been placed successfully and is pending preparation.";
