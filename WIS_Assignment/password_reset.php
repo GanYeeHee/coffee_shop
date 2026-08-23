@@ -86,7 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hashed_pw = password_hash($new_password, PASSWORD_DEFAULT);
                 $update_stmt = $pdo->prepare("UPDATE users SET password = ? WHERE username = ?");
                 $update_stmt->execute([$hashed_pw, $username]);
-                
+
+                // Proving identity via security question also clears any login lockout
+                reset_login_attempts($pdo, $user['user_id']);
+
                 $_SESSION['flash_success'] = "Password reset successful! You can now log in.";
                 header("Location: login.php");
                 exit;

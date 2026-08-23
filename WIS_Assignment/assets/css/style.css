@@ -1413,6 +1413,7 @@ table.table tr:nth-child(even) {
 .badge-cancelled { background-color: #FFEBEE; color: #B71C1C; }
 .badge-active { background-color: #E8F5E9; color: #1B5E20; }
 .badge-blocked { background-color: #FFEBEE; color: #B71C1C; }
+.badge-locked { background-color: #FFF3E0; color: #E65100; margin-left: 0.3rem; }
 .badge-failed { background-color: #FFEBEE; color: #B71C1C; }
 .badge-flag-yes { background-color: #EFEBDD; color: #6B5B2A; }
 .badge-flag-no { background-color: #F1EEE8; color: #7C7166; }

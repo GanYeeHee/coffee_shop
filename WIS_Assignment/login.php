@@ -44,10 +44,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Check if user is blocked
             if ($user['status'] === 'blocked') {
                 $errors['general'] = "Your account has been blocked by an administrator.";
+            } elseif (is_account_locked($user)) {
+                $minutes = get_lockout_minutes_remaining($user);
+                $errors['general'] = "Too many failed login attempts. Please try again in $minutes minute(s).";
             } elseif (password_verify($password, $user['password'])) {
                 // Log user in
+                reset_login_attempts($pdo, $user['id']);
                 login_user($user);
-                
+
                 // Redirect based on role
                 if ($user['role'] === 'admin') {
                     header("Location: admin/index.php");
@@ -56,7 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 exit;
             } else {
-                $errors['general'] = "Invalid username or password.";
+                $remaining = record_failed_login($pdo, $user);
+                if ($remaining > 0) {
+                    $errors['general'] = "Invalid username or password. $remaining attempt(s) remaining before lockout.";
+                } else {
+                    $errors['general'] = "Too many failed login attempts. Please try again in " . LOCKOUT_MINUTES . " minute(s).";
+                }
             }
         } else {
             $errors['general'] = "Invalid username or password.";
