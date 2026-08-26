@@ -1468,7 +1468,7 @@ footer {
     max-width: 1400px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 1.3fr 1fr 1fr 1.2fr;
+    grid-template-columns: 1.6fr 1fr;
     gap: 2.5rem;
 }
 
@@ -1504,63 +1504,6 @@ footer h4 {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-}
-
-.footer-social {
-    display: flex;
-    gap: 0.6rem;
-    margin-top: 1rem;
-}
-
-.footer-social a {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 1px solid rgba(216, 208, 196, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.footer-social a:hover {
-    border-color: var(--gold-soft);
-}
-
-.footer-social svg {
-    width: 14px;
-    height: 14px;
-}
-
-.footer-signup {
-    display: flex;
-    border-bottom: 1px solid rgba(216, 208, 196, 0.3);
-    padding-bottom: 0.5rem;
-}
-
-.footer-signup input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--bg-cream);
-    font-family: 'Jost', sans-serif;
-    padding: 0.3rem 0;
-}
-
-.footer-signup input::placeholder {
-    color: #8A8073;
-}
-
-.footer-signup input:focus {
-    outline: none;
-}
-
-.footer-signup button {
-    background: none;
-    border: none;
-    color: var(--gold-soft);
-    font-size: 0.9rem;
-    cursor: pointer;
-    font-family: 'Jost', sans-serif;
 }
 
 .footer-base {

@@ -27,12 +27,6 @@ $(document).ready(function() {
         });
     }
 
-    // 0b. Footer newsletter signup has no backend yet - just acknowledge the submission
-    $(document).on('submit', '#newsletter-form', function (e) {
-        e.preventDefault();
-        $(this).find('input[type=email]').val('').attr('placeholder', 'Thanks for joining!');
-    });
-
     // 1. AJAX: Cart Quantity Stepper (+/-) with Auto-Save
     $(document).on('click', '.qty-btn', function () {
         var $btn = $(this);
