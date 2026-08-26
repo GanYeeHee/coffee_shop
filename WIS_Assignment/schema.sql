@@ -258,12 +258,13 @@ CREATE TABLE `payments` (
 -- INSERT SAMPLE DATA
 -- --------------------------------------------------------
 
--- Users with merged profile info (Passwords: admin123 / member123 / super123)
--- NOTE: 'superadmin' email is a placeholder - change it to a real inbox to receive admin login OTP codes.
+-- Users with merged profile info (Passwords: admin123 / member123 / superadmin: CoffeeShop123)
+-- The superadmin uses the shared project Gmail (same account as SMTP_USERNAME in
+-- includes/mailer.php) so the admin-login OTP codes are actually delivered to an inbox.
 INSERT INTO `users` (`id`, `username`, `email`, `password`, `full_name`, `phone`, `photo`, `role`, `status`) VALUES
 (1, 'admin', 'admin@dailygrind.com', '$2y$10$IkPc6mTn6MXSXEA5LFViBOOgebY38yNN6QEnvCU8d3CntR9AYElwu', 'Admin Manager', '012-3456789', 'default_admin.png', 'admin', 'active'),
 (2, 'member', 'member@dailygrind.com', '$2y$10$CRS02ruW77feav/qAostJ.B7BUXt66e0HEn6d/cNYfMo0sDI/dU7S', 'John Member', '019-8765432', 'default_member.png', 'member', 'active'),
-(3, 'superadmin', 'superadmin@dailygrind.com', '$2y$10$5T88GslyJvXUoslF2B.WH.8mp1Eps148SrVe0rQ5rjzs/yoyGjn8K', 'Super Administrator', '012-0000000', 'default_admin.png', 'super_admin', 'active');
+(3, 'superadmin', 'coffeeshopadminacc@gmail.com', '$2y$10$1lwrOq2QD98nW19LRJETB.20uXg0RnX1/lUY.Kd0D2T6sjZjdHg7i', 'Super Administrator', '012-0000000', 'default_admin.png', 'super_admin', 'active');
 
 -- User Saved Addresses
 INSERT INTO `user_addresses` (`id`, `user_id`, `address_label`, `recipient_name`, `recipient_phone`, `address_line_1`, `address_line_2`, `city`, `state`, `zip_code`, `is_default`) VALUES
