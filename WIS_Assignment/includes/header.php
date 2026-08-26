@@ -70,12 +70,9 @@ if (is_logged_in() && is_member() && isset($pdo)) {
                     <li class="nav-item"><a href="<?= $base_path ?>admin/products.php" class="<?= trim(nav_active('products.php', true, $current_page, $is_admin_dir)) ?>">Products</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/option_templates.php" class="<?= trim(nav_active('option_templates.php', true, $current_page, $is_admin_dir)) ?>">Option Templates</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/vouchers.php" class="<?= trim(nav_active('vouchers.php', true, $current_page, $is_admin_dir)) ?>">Vouchers</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/members.php" class="<?= trim(nav_active('members.php', true, $current_page, $is_admin_dir)) ?>">Members</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/users.php" class="<?= trim(nav_active('users.php', true, $current_page, $is_admin_dir)) ?>">Users</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/orders.php" class="<?= trim(nav_active('orders.php', true, $current_page, $is_admin_dir)) ?>">Orders</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/reports.php" class="<?= trim(nav_active('reports.php', true, $current_page, $is_admin_dir)) ?>">Reports</a></li>
-                    <?php if (is_super_admin()): ?>
-                        <li class="nav-item"><a href="<?= $base_path ?>admin/admins.php" class="<?= trim(nav_active('admins.php', true, $current_page, $is_admin_dir)) ?>">Admins</a></li>
-                    <?php endif; ?>
                 <?php elseif (is_member()): ?>
                     <!-- Member specific links -->
                     <li class="nav-item"><a href="<?= $base_path ?>orders.php" class="<?= trim(nav_active('orders.php', false, $current_page, $is_admin_dir)) ?>">My Orders</a></li>

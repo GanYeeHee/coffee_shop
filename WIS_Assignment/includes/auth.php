@@ -82,7 +82,9 @@ function require_admin() {
 }
 
 /**
- * Restrict page access to super admin users (admin account management).
+ * Restrict a whole page to super admin users. The Users page (admin/users.php) is
+ * shared by all admins and gates individual actions inline with is_super_admin()
+ * instead, but this helper is kept for any fully super-admin-only page.
  * A plain admin is sent back to the dashboard with an explanatory flash.
  */
 function require_super_admin() {

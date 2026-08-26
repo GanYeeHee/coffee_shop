@@ -74,66 +74,7 @@ function resolve_selected_options(PDO $pdo, $product_id, $selected) {
     ];
 }
 
-// Handle AJAX cart addition separately to avoid rendering layouts
-if (isset($_POST['action']) && $_POST['action'] === 'ajax_add') {
-    header('Content-Type: application/json');
-
-    if (!is_logged_in()) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Please log in to add items to your cart.',
-            'redirect' => 'login.php'
-        ]);
-        exit;
-    }
-
-    if (is_admin()) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Administrators cannot make purchases.'
-        ]);
-        exit;
-    }
-
-    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
-    $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
-    $user_id = $_SESSION['user_id'];
-
-    // Check product exists and has stock
-    $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
-    $stmt->execute([$product_id]);
-    $product = $stmt->fetch();
-
-    if (!$product) {
-        echo json_encode(['success' => false, 'message' => 'Product not found.']);
-        exit;
-    }
-
-    if ($product['stock'] <= 0) {
-        echo json_encode(['success' => false, 'message' => 'This product is out of stock.']);
-        exit;
-    }
-
-    // Quick-add from product cards never carries a customization note
-    $result = cart_upsert($pdo, $user_id, $product_id, $quantity, '', $product['stock']);
-    $message = $result['capped']
-        ? "Only {$product['stock']} units available. Cart quantity adjusted accordingly."
-        : "Product added to cart!";
-
-    // Calculate total cart items count
-    $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
-    $stmt->execute([$user_id]);
-    $total_items = intval($stmt->fetchColumn());
-
-    echo json_encode([
-        'success' => true,
-        'message' => $message,
-        'cart_count' => $total_items
-    ]);
-    exit;
-}
-
-// Handle AJAX quantity stepper (+/-) separately, matching the ajax_add pattern above
+// Handle AJAX quantity stepper (+/-) separately to avoid rendering layouts
 if (isset($_POST['action']) && $_POST['action'] === 'ajax_update_qty') {
     header('Content-Type: application/json');
 

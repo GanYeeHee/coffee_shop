@@ -27,8 +27,8 @@
     </div>
 </footer>
 
-<!-- Include jQuery via CDN -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<!-- Include jQuery (hosted locally, no external dependency) -->
+<script src="<?= $base_path ?>assets/js/jquery-3.7.1.min.js"></script>
 
 <!-- Include Custom JS -->
 <script src="<?= $base_path ?>assets/js/app.js"></script>

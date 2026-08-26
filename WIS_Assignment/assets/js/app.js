@@ -184,4 +184,143 @@ $(document).ready(function() {
         });
     });
 
+    // 12. AJAX shop filtering: category links, the search form, and pagination
+    //     refresh only the product list instead of reloading the whole page.
+    //     The plain links/form still work when JavaScript is disabled.
+    if ($('.shop-layout').length) {
+
+        // Keep the sidebar "active" state and the search box's category scope
+        // in sync with whichever URL we just loaded.
+        var syncShopControls = function (url) {
+            var catId = (url.match(/[?&]cat_id=(\d+)/) || [])[1] || '';
+
+            $('.filter-list a').removeClass('active').each(function () {
+                var linkCat = (($(this).attr('href') || '').match(/[?&]cat_id=(\d+)/) || [])[1] || '';
+                if (linkCat === catId) {
+                    $(this).addClass('active');
+                }
+            });
+
+            var $catField = $('.search-form input[name=cat_id]');
+            if (catId) {
+                if ($catField.length) {
+                    $catField.val(catId);
+                } else {
+                    $('<input type="hidden" name="cat_id">').val(catId).prependTo('.search-form');
+                }
+            } else {
+                $catField.remove();
+            }
+        };
+
+        var loadProducts = function (url, addToHistory) {
+            var $section = $('.products-section').addClass('is-loading');
+
+            $.ajax({
+                url: url,
+                type: 'GET',
+                data: { ajax: 'products' },
+                success: function (html) {
+                    $section.html(html);
+                    if (addToHistory) {
+                        history.pushState({ shopUrl: url }, '', url);
+                    }
+                    syncShopControls(url);
+                },
+                error: function () {
+                    window.location.href = url; // fall back to a normal page load
+                },
+                complete: function () {
+                    $section.removeClass('is-loading');
+                }
+            });
+        };
+
+        // Remember the first-load URL so the Back button can restore it.
+        history.replaceState({ shopUrl: window.location.href }, '', window.location.href);
+
+        $(document).on('click', '.filter-list a, .products-section .pagination a', function (e) {
+            e.preventDefault();
+            loadProducts($(this).attr('href'), true);
+        });
+
+        $(document).on('submit', '.search-form', function (e) {
+            e.preventDefault();
+            var $form = $(this);
+            var query = $form.serialize();
+            loadProducts($form.attr('action') + (query ? '?' + query : ''), true);
+        });
+
+        $(window).on('popstate', function (e) {
+            var state = e.originalEvent && e.originalEvent.state;
+            if (state && state.shopUrl) {
+                loadProducts(state.shopUrl, false);
+            }
+        });
+    }
+
+    // 13. Admin tables: per-row "..." (kebab) action menu.
+    //     The panel is position:fixed so it is not clipped by the table's
+    //     horizontal scroll container; it is re-positioned each time it opens.
+    if ($('.row-menu').length) {
+
+        var closeRowMenus = function () {
+            $('.row-menu-panel').prop('hidden', true);
+            $('.row-menu-toggle').attr('aria-expanded', 'false');
+        };
+
+        $(document).on('click', '.row-menu-toggle', function () {
+            var $toggle = $(this);
+            var $panel = $toggle.next('.row-menu-panel');
+            var willOpen = $panel.prop('hidden');
+
+            closeRowMenus();
+            if (!willOpen) {
+                return;
+            }
+
+            $panel.prop('hidden', false);
+            $toggle.attr('aria-expanded', 'true');
+
+            var rect = this.getBoundingClientRect();
+            var panelW = $panel.outerWidth();
+            var panelH = $panel.outerHeight();
+
+            var left = Math.max(8, Math.min(rect.right - panelW, window.innerWidth - panelW - 8));
+            var top = rect.bottom + 4;
+            if (top + panelH > window.innerHeight - 8) {
+                top = Math.max(8, rect.top - panelH - 4); // flip above when no room below
+            }
+
+            $panel.css({ left: left + 'px', top: top + 'px' });
+        });
+
+        // Close when clicking anywhere outside a row menu.
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest('.row-menu').length) {
+                closeRowMenus();
+            }
+        });
+
+        $(document).on('keydown', function (e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                closeRowMenus();
+            }
+        });
+        $(window).on('resize scroll', closeRowMenus);
+        $('.table-responsive').on('scroll', closeRowMenus);
+    }
+
+    // 14. Admin drawer: lock the background from scrolling while it's open, and
+    //     let Esc close it (same target as clicking the scrim).
+    var $drawerScrim = $('.admin-drawer-scrim');
+    if ($drawerScrim.length) {
+        $('body').css('overflow', 'hidden');
+        $(document).on('keydown', function (e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                window.location.href = $drawerScrim.attr('href');
+            }
+        });
+    }
+
 });
