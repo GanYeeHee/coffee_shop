@@ -14,6 +14,7 @@ if (is_logged_in()) {
 
 $errors = [];
 $username = '';
+$show_admin_link = false;
 
 // Check for registration success flash message
 $flash_success = $_SESSION['flash_success'] ?? null;
@@ -41,23 +42,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
         
         if ($user) {
+            // Admins have their own login (with an email OTP step) - send them there.
+            if (in_array($user['role'], ['admin', 'super_admin'], true)) {
+                $errors['general'] = "Administrator accounts must sign in through the admin login.";
+                $show_admin_link = true;
+            }
             // Check if user is blocked
-            if ($user['status'] === 'blocked') {
+            elseif ($user['status'] === 'blocked') {
                 $errors['general'] = "Your account has been blocked by an administrator.";
             } elseif (is_account_locked($user)) {
                 $minutes = get_lockout_minutes_remaining($user);
                 $errors['general'] = "Too many failed login attempts. Please try again in $minutes minute(s).";
             } elseif (password_verify($password, $user['password'])) {
-                // Log user in
+                // Members only (admins were redirected to the admin login above).
                 reset_login_attempts($pdo, $user['id']);
                 login_user($user);
-
-                // Redirect based on role
-                if ($user['role'] === 'admin') {
-                    header("Location: admin/index.php");
-                } else {
-                    header("Location: index.php");
-                }
+                header("Location: index.php");
                 exit;
             } else {
                 $remaining = record_failed_login($pdo, $user);
@@ -86,9 +86,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
     
     <?php if (isset($errors['general'])): ?>
-        <div class="alert alert-danger"><?= htmlspecialchars($errors['general']) ?></div>
+        <div class="alert alert-danger">
+            <?= htmlspecialchars($errors['general']) ?>
+            <?php if ($show_admin_link): ?>
+                <a href="admin/login.php">Go to admin login &rarr;</a>
+            <?php endif; ?>
+        </div>
     <?php endif; ?>
-    
+
     <form action="login.php" method="POST" novalidate>
         <?= html_input('text', 'username', $username, 'Username or Email', 'Enter your username or email', $errors) ?>
         

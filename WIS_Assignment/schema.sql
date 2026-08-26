@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS `product_option_groups`;
 DROP TABLE IF EXISTS `option_template_values`;
 DROP TABLE IF EXISTS `option_templates`;
 DROP TABLE IF EXISTS `product_images`;
+DROP TABLE IF EXISTS `admin_login_otps`;
 DROP TABLE IF EXISTS `password_reset_tokens`;
 DROP TABLE IF EXISTS `user_security_answers`;
 DROP TABLE IF EXISTS `user_addresses`;
@@ -43,7 +44,7 @@ CREATE TABLE `users` (
   `full_name` VARCHAR(100) NOT NULL,
   `phone` VARCHAR(20) DEFAULT NULL,
   `photo` VARCHAR(255) DEFAULT 'default_user.png',
-  `role` ENUM('admin', 'member') DEFAULT 'member',
+  `role` ENUM('super_admin', 'admin', 'member') DEFAULT 'member',
   `status` ENUM('active', 'blocked') DEFAULT 'active',
   `failed_attempts` INT UNSIGNED NOT NULL DEFAULT 0,
   `locked_until` DATETIME DEFAULT NULL,
@@ -83,6 +84,17 @@ CREATE TABLE `password_reset_tokens` (
   `token` VARCHAR(64) PRIMARY KEY,
   `user_id` INT NOT NULL,
   `expires_at` DATETIME NOT NULL,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3b. Admin Login OTP Codes (6-digit second factor for the separate admin login at /admin/login.php).
+-- One active code per admin; the row is replaced on each request and deleted once used.
+CREATE TABLE `admin_login_otps` (
+  `user_id` INT NOT NULL PRIMARY KEY,
+  `code_hash` VARCHAR(255) NOT NULL,
+  `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  `expires_at` DATETIME NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -246,10 +258,12 @@ CREATE TABLE `payments` (
 -- INSERT SAMPLE DATA
 -- --------------------------------------------------------
 
--- Users with merged profile info (Passwords: admin123 / member123)
+-- Users with merged profile info (Passwords: admin123 / member123 / super123)
+-- NOTE: 'superadmin' email is a placeholder - change it to a real inbox to receive admin login OTP codes.
 INSERT INTO `users` (`id`, `username`, `email`, `password`, `full_name`, `phone`, `photo`, `role`, `status`) VALUES
 (1, 'admin', 'admin@dailygrind.com', '$2y$10$IkPc6mTn6MXSXEA5LFViBOOgebY38yNN6QEnvCU8d3CntR9AYElwu', 'Admin Manager', '012-3456789', 'default_admin.png', 'admin', 'active'),
-(2, 'member', 'member@dailygrind.com', '$2y$10$CRS02ruW77feav/qAostJ.B7BUXt66e0HEn6d/cNYfMo0sDI/dU7S', 'John Member', '019-8765432', 'default_member.png', 'member', 'active');
+(2, 'member', 'member@dailygrind.com', '$2y$10$CRS02ruW77feav/qAostJ.B7BUXt66e0HEn6d/cNYfMo0sDI/dU7S', 'John Member', '019-8765432', 'default_member.png', 'member', 'active'),
+(3, 'superadmin', 'superadmin@dailygrind.com', '$2y$10$5T88GslyJvXUoslF2B.WH.8mp1Eps148SrVe0rQ5rjzs/yoyGjn8K', 'Super Administrator', '012-0000000', 'default_admin.png', 'super_admin', 'active');
 
 -- User Saved Addresses
 INSERT INTO `user_addresses` (`id`, `user_id`, `address_label`, `recipient_name`, `recipient_phone`, `address_line_1`, `address_line_2`, `city`, `state`, `zip_code`, `is_default`) VALUES
