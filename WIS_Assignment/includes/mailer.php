@@ -12,6 +12,10 @@ define('SMTP_USERNAME', 'coffeeshopadminacc@gmail.com');
 define('SMTP_PASSWORD', 'hegt rdvj lsjz kqhk');
 define('SMTP_FROM_NAME', 'TAR Coffee');
 
+// DEV ONLY: when true, the admin login page also prints the generated OTP on
+// screen so it can be demoed without a working inbox. Keep this false in production.
+define('ADMIN_OTP_DEV_DISPLAY', false);
+
 /**
  * Returns a configured but unsent PHPMailer instance.
  */
@@ -29,6 +33,26 @@ function get_mail() {
     $mail->setFrom(SMTP_USERNAME, SMTP_FROM_NAME);
 
     return $mail;
+}
+
+/**
+ * Send a 6-digit admin login verification code. Unlike the password-reset mail
+ * (which is deliberately silent), the caller should surface any failure here so
+ * the admin knows the code was not delivered.
+ */
+function send_admin_otp($user, $code) {
+    $mail = get_mail();
+    $mail->addAddress($user['email'], $user['full_name']);
+    $mail->Subject = 'Your Admin Login Code - TAR Coffee';
+    $mail->isHTML(true);
+    $mail->Body = "
+        <p>Hi " . htmlspecialchars($user['full_name']) . ",</p>
+        <p>Use this code to finish signing in to the TAR Coffee admin area:</p>
+        <p style=\"font-size: 2rem; font-weight: 700; letter-spacing: 0.4rem; margin: 1rem 0;\">"
+            . htmlspecialchars($code) . "</p>
+        <p>The code expires in 10 minutes. If you did not try to sign in, change your password immediately.</p>
+    ";
+    $mail->send();
 }
 
 /**

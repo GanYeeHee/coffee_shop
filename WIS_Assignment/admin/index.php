@@ -38,9 +38,23 @@ $recent_orders_stmt = $pdo->query("SELECT o.*, u.username
                                    ORDER BY o.order_date DESC 
                                    LIMIT 5");
 $recent_orders = $recent_orders_stmt->fetchAll();
+
+// Flash Messages
+$flash_success = $_SESSION['flash_success'] ?? null;
+unset($_SESSION['flash_success']);
+$flash_error = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_error']);
 ?>
 
 <h1 class="page-title">Admin Dashboard</h1>
+
+<?php if ($flash_success): ?>
+    <div class="alert alert-success"><?= htmlspecialchars($flash_success) ?></div>
+<?php endif; ?>
+
+<?php if ($flash_error): ?>
+    <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
+<?php endif; ?>
 
 <div class="admin-dashboard">
     <!-- Stats Cards Grid -->

@@ -1,49 +1,101 @@
 <?php
-require_once __DIR__ . '/includes/header.php';
+// An ?ajax=products request returns just the product-list fragment (no page
+// layout) so the category filter, search, and pagination can refresh the grid
+// in place. The plain links and GET form below still work with JavaScript off.
+$shop_ajax = isset($_GET['ajax']) && $_GET['ajax'] === 'products';
+
+if ($shop_ajax) {
+    require_once __DIR__ . '/includes/db.php';
+    require_once __DIR__ . '/includes/auth.php';
+    require_once __DIR__ . '/includes/html_helpers.php';
+} else {
+    require_once __DIR__ . '/includes/header.php';
+}
 
 // Fetch all categories for the sidebar filter
 $cat_stmt = $pdo->query("SELECT * FROM categories ORDER BY name ASC");
 $categories = $cat_stmt->fetchAll();
 
-// Handle search and filtering
-$cat_id = isset($_GET['cat_id']) ? intval($_GET['cat_id']) : 0;
+// Handle search and filtering. cat_id is normally a category id, but the special
+// value "best" is a virtual category: the best sellers by units sold.
+$is_best = (($_GET['cat_id'] ?? '') === 'best');
+$cat_id = $is_best ? 0 : (isset($_GET['cat_id']) ? intval($_GET['cat_id']) : 0);
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 
-// Build the product query
-$where = [];
-$params = [];
-
-if ($cat_id > 0) {
-    $where[] = "p.category_id = ?";
-    $params[] = $cat_id;
-}
-
-if ($search !== '') {
-    $where[] = "(p.name LIKE ? OR p.description LIKE ?)";
-    $params[] = '%' . $search . '%';
-    $params[] = '%' . $search . '%';
-}
-
-$where_sql = $where ? (" WHERE " . implode(" AND ", $where)) : "";
-
-$count_sql = "SELECT COUNT(*) FROM products p LEFT JOIN categories c ON p.category_id = c.id" . $where_sql;
-$per_page = 12;
-$pg = paginate_query($pdo, $count_sql, $params, $per_page);
-
-$sql = "SELECT p.*, c.name as category_name,
+// Columns every product card needs (shared by the normal and Best Sellers queries).
+$card_cols = "p.*, c.name as category_name,
         (SELECT image_path FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, id ASC LIMIT 1) as primary_image,
         (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) as avg_rating,
         (SELECT COUNT(*) FROM reviews WHERE product_id = p.id) as review_count,
-        EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id AND is_required = 1) as has_required_options
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id"
-        . $where_sql
-        . " ORDER BY p.id DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
-$prod_stmt = $pdo->prepare($sql);
-$prod_stmt->execute($params);
-$products = $prod_stmt->fetchAll();
+        EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id AND is_required = 1) as has_required_options";
 
-$pager_params = array_filter(['cat_id' => $cat_id > 0 ? $cat_id : null, 'q' => $search !== '' ? $search : null]);
+if ($is_best) {
+    // Top 5 products by quantity sold across all non-cancelled orders. Products
+    // keep their real category_id - this is just a different view of the catalogue.
+    $best_limit = 5;
+    $sql = "SELECT $card_cols, s.total_sold
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            JOIN (
+                SELECT oi.product_id, SUM(oi.quantity) AS total_sold
+                FROM order_items oi
+                JOIN orders o ON o.id = oi.order_id
+                WHERE o.status <> 'Cancelled' AND oi.product_id IS NOT NULL
+                GROUP BY oi.product_id
+            ) s ON s.product_id = p.id
+            ORDER BY s.total_sold DESC, p.id DESC
+            LIMIT $best_limit";
+    $products = $pdo->query($sql)->fetchAll();
+
+    // No sales data yet? Fall back to the newest products so the page is never blank.
+    if (empty($products)) {
+        $products = $pdo->query("SELECT $card_cols
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            ORDER BY p.id DESC
+            LIMIT $best_limit")->fetchAll();
+    }
+
+    $pg = ['page' => 1, 'per_page' => $best_limit, 'offset' => 0, 'total_rows' => count($products), 'total_pages' => 1];
+} else {
+    // Build the product query
+    $where = [];
+    $params = [];
+
+    if ($cat_id > 0) {
+        $where[] = "p.category_id = ?";
+        $params[] = $cat_id;
+    }
+
+    if ($search !== '') {
+        $where[] = "(p.name LIKE ? OR p.description LIKE ?)";
+        $params[] = '%' . $search . '%';
+        $params[] = '%' . $search . '%';
+    }
+
+    $where_sql = $where ? (" WHERE " . implode(" AND ", $where)) : "";
+
+    $count_sql = "SELECT COUNT(*) FROM products p LEFT JOIN categories c ON p.category_id = c.id" . $where_sql;
+    $per_page = 12;
+    $pg = paginate_query($pdo, $count_sql, $params, $per_page);
+
+    $sql = "SELECT $card_cols
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id"
+            . $where_sql
+            . " ORDER BY p.id DESC LIMIT " . (int) $pg['per_page'] . " OFFSET " . (int) $pg['offset'];
+    $prod_stmt = $pdo->prepare($sql);
+    $prod_stmt->execute($params);
+    $products = $prod_stmt->fetchAll();
+}
+
+$pager_params = array_filter(['cat_id' => $is_best ? 'best' : ($cat_id > 0 ? $cat_id : null), 'q' => $search !== '' ? $search : null]);
+
+// AJAX request: emit only the product-list fragment and stop before the layout.
+if ($shop_ajax) {
+    require __DIR__ . '/includes/product_list.php';
+    exit;
+}
 ?>
 
 <!-- Hero Banner Section -->
@@ -75,8 +127,13 @@ $pager_params = array_filter(['cat_id' => $cat_id > 0 ? $cat_id : null, 'q' => $
         <h3>Categories</h3>
         <ul class="filter-list">
             <li>
-                <a href="index.php<?= !empty($search) ? '?q=' . urlencode($search) : '' ?>" class="<?= $cat_id === 0 ? 'active' : '' ?>">
+                <a href="index.php<?= !empty($search) ? '?q=' . urlencode($search) : '' ?>" class="<?= (!$is_best && $cat_id === 0) ? 'active' : '' ?>">
                     All Products
+                </a>
+            </li>
+            <li>
+                <a href="index.php?cat_id=best<?= !empty($search) ? '&q=' . urlencode($search) : '' ?>" class="<?= $is_best ? 'active' : '' ?>">
+                    &#9733; Best Sellers
                 </a>
             </li>
             <?php foreach ($categories as $cat): ?>
@@ -89,92 +146,9 @@ $pager_params = array_filter(['cat_id' => $cat_id > 0 ? $cat_id : null, 'q' => $
         </ul>
     </aside>
 
-    <!-- Main Products Listing -->
+    <!-- Main Products Listing (refreshed in place via assets/js/app.js) -->
     <section class="products-section">
-        <h2 class="section-title">
-            <?php 
-            if ($cat_id > 0) {
-                // Find category name
-                $cat_name = 'Products';
-                foreach ($categories as $c) {
-                    if ($c['id'] == $cat_id) {
-                        $cat_name = $c['name'];
-                        break;
-                    }
-                }
-                echo htmlspecialchars($cat_name);
-            } else {
-                echo 'Our Menu';
-            }
-            if ($search !== '') {
-                echo ' - Search results for "' . htmlspecialchars($search) . '"';
-            }
-            ?>
-        </h2>
-
-        <?php if (empty($products)): ?>
-            <div class="alert alert-info">
-                No products found matching your criteria. Try adjusting your search query or filters.
-            </div>
-        <?php else: ?>
-            <div class="product-grid">
-                <?php foreach ($products as $product): ?>
-                    <article class="product-card">
-                        <div class="product-img-wrapper">
-                            <?php
-                            $photo_path = 'uploads/products/' . $product['primary_image'];
-                            if (!empty($product['primary_image']) && file_exists(__DIR__ . '/' . $photo_path)):
-                            ?>
-                                <img src="<?= htmlspecialchars($photo_path) ?>" class="product-img" alt="<?= htmlspecialchars($product['name']) ?>">
-                            <?php else: ?>
-                                <div class="product-img-placeholder">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6 10h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-5z"/><path d="M17 11.5h1.2a2.3 2.3 0 0 1 0 4.6H17"/></svg>
-                                </div>
-                            <?php endif; ?>
-                            
-                            <!-- Stock Indicators -->
-                            <?php if ($product['stock'] == 0): ?>
-                                <span class="stock-badge out-of-stock">Sold Out</span>
-                            <?php elseif ($product['stock'] <= 5): ?>
-                                <span class="stock-badge low-stock">Low Stock (<?= $product['stock'] ?> left)</span>
-                            <?php else: ?>
-                                <span class="stock-badge in-stock">In Stock</span>
-                            <?php endif; ?>
-                        </div>
-                        
-                        <div class="product-info">
-                            <span class="product-cat"><?= htmlspecialchars($product['category_name'] ?? 'Uncategorized') ?></span>
-                            <h3 class="product-name">
-                                <a href="product_detail.php?id=<?= $product['id'] ?>">
-                                    <?= htmlspecialchars($product['name']) ?>
-                                </a>
-                            </h3>
-                            <?php if ($product['review_count'] > 0): ?>
-                                <span class="star-rating"><span class="stars">★</span> <?= number_format($product['avg_rating'], 1) ?> (<?= $product['review_count'] ?>)</span>
-                            <?php endif; ?>
-                            <div class="product-spacer"></div>
-                            
-                            <div class="product-price-action">
-                                <span class="product-price">RM<?= number_format($product['price'], 2) ?></span>
-                                
-                                <?php if (is_admin()): ?>
-                                    <a href="admin/products.php?action=edit&id=<?= $product['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
-                                <?php else: ?>
-                                    <?php if ($product['stock'] > 0 && $product['has_required_options']): ?>
-                                        <a href="product_detail.php?id=<?= $product['id'] ?>" class="btn btn-accent btn-sm">Select Options</a>
-                                    <?php elseif ($product['stock'] > 0): ?>
-                                        <a href="product_detail.php?id=<?= $product['id'] ?>" class="btn btn-accent btn-sm">Add to Cart</a>
-                                    <?php else: ?>
-                                        <button class="btn btn-secondary btn-sm" disabled>Unavailable</button>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </article>
-                <?php endforeach; ?>
-            </div>
-            <?= render_pagination($pg, 'index.php', $pager_params) ?>
-        <?php endif; ?>
+        <?php require __DIR__ . '/includes/product_list.php'; ?>
     </section>
 </div>
 

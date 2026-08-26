@@ -74,66 +74,7 @@ function resolve_selected_options(PDO $pdo, $product_id, $selected) {
     ];
 }
 
-// Handle AJAX cart addition separately to avoid rendering layouts
-if (isset($_POST['action']) && $_POST['action'] === 'ajax_add') {
-    header('Content-Type: application/json');
-
-    if (!is_logged_in()) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Please log in to add items to your cart.',
-            'redirect' => 'login.php'
-        ]);
-        exit;
-    }
-
-    if (is_admin()) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Administrators cannot make purchases.'
-        ]);
-        exit;
-    }
-
-    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
-    $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
-    $user_id = $_SESSION['user_id'];
-
-    // Check product exists and has stock
-    $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
-    $stmt->execute([$product_id]);
-    $product = $stmt->fetch();
-
-    if (!$product) {
-        echo json_encode(['success' => false, 'message' => 'Product not found.']);
-        exit;
-    }
-
-    if ($product['stock'] <= 0) {
-        echo json_encode(['success' => false, 'message' => 'This product is out of stock.']);
-        exit;
-    }
-
-    // Quick-add from product cards never carries a customization note
-    $result = cart_upsert($pdo, $user_id, $product_id, $quantity, '', $product['stock']);
-    $message = $result['capped']
-        ? "Only {$product['stock']} units available. Cart quantity adjusted accordingly."
-        : "Product added to cart!";
-
-    // Calculate total cart items count
-    $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
-    $stmt->execute([$user_id]);
-    $total_items = intval($stmt->fetchColumn());
-
-    echo json_encode([
-        'success' => true,
-        'message' => $message,
-        'cart_count' => $total_items
-    ]);
-    exit;
-}
-
-// Handle AJAX quantity stepper (+/-) separately, matching the ajax_add pattern above
+// Handle AJAX quantity stepper (+/-) separately to avoid rendering layouts
 if (isset($_POST['action']) && $_POST['action'] === 'ajax_update_qty') {
     header('Content-Type: application/json');
 
@@ -181,6 +122,46 @@ if (isset($_POST['action']) && $_POST['action'] === 'ajax_update_qty') {
         'capped' => $new_qty < $requested_qty,
         'at_min' => $new_qty <= 1,
         'at_max' => $new_qty >= $cart_item['stock']
+    ]);
+    exit;
+}
+
+// Handle AJAX batch removal ("remove selected items"), same pattern as above
+if (isset($_POST['action']) && $_POST['action'] === 'ajax_batch_remove') {
+    header('Content-Type: application/json');
+
+    if (!is_logged_in()) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Please log in to update your cart.',
+            'redirect' => 'login.php'
+        ]);
+        exit;
+    }
+
+    $user_id = $_SESSION['user_id'];
+    $ids = array_values(array_filter(array_map('intval', (array) ($_POST['ids'] ?? []))));
+
+    if (!$ids) {
+        echo json_encode(['success' => false, 'message' => 'No items selected.']);
+        exit;
+    }
+
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $pdo->prepare("DELETE FROM cart WHERE id IN ($ph) AND user_id = ?")
+        ->execute(array_merge($ids, [$user_id]));
+
+    $totals_stmt = $pdo->prepare("SELECT SUM(c.quantity * (p.price + c.options_price_delta)) as total, SUM(c.quantity) as item_count
+                                  FROM cart c JOIN products p ON c.product_id = p.id WHERE c.user_id = ?");
+    $totals_stmt->execute([$user_id]);
+    $totals = $totals_stmt->fetch();
+
+    echo json_encode([
+        'success' => true,
+        'removed' => $ids,
+        'grand_total' => round($totals['total'] ?? 0, 2),
+        'cart_count' => intval($totals['item_count'] ?? 0),
+        'message' => count($ids) . ' item(s) removed.'
     ]);
     exit;
 }
@@ -371,10 +352,18 @@ unset($_SESSION['flash_error']);
         <a href="index.php" class="btn btn-accent">Browse Coffee Menu</a>
     </div>
 <?php else: ?>
+    <!-- Batch remove: JS collects checked .cart-cb values and posts them via $.ajax (app.js #15b).
+         Intentionally NOT a <form> wrapper - each row already has its own per-item Remove form. -->
+    <div class="bulk-bar is-hidden" id="cart-bulk-bar">
+        <span class="badge" id="cart-bulk-count">0 selected</span>
+        <button type="button" id="cart-bulk-remove" class="btn btn-sm btn-danger">Remove selected</button>
+    </div>
+
     <div class="table-responsive">
         <table class="table">
             <thead>
                 <tr>
+                    <th class="col-check"><input type="checkbox" id="cart-select-all" title="Select all"></th>
                     <th>Product</th>
                     <th>Price</th>
                     <th>Quantity</th>
@@ -389,7 +378,8 @@ unset($_SESSION['flash_error']);
                     $subtotal = $item['unit_price'] * $item['quantity'];
                     $grand_total += $subtotal;
                 ?>
-                    <tr>
+                    <tr data-cart-row="<?= $item['cart_id'] ?>">
+                        <td class="col-check"><input type="checkbox" class="cart-cb" name="ids[]" value="<?= $item['cart_id'] ?>"></td>
                         <td>
                             <div style="display: flex; align-items: center; gap: 1rem;">
                                 <?php

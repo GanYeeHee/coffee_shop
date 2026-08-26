@@ -16,10 +16,18 @@ function is_logged_in() {
 }
 
 /**
- * Check if the logged in user is an Admin.
+ * Check if the logged in user is an Admin (a plain admin OR a super admin -
+ * super admins can reach everything a normal admin can).
  */
 function is_admin() {
-    return is_logged_in() && isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+    return is_logged_in() && in_array($_SESSION['user_role'] ?? '', ['admin', 'super_admin'], true);
+}
+
+/**
+ * Check if the logged in user is a Super Admin (can manage other admin accounts).
+ */
+function is_super_admin() {
+    return is_logged_in() && ($_SESSION['user_role'] ?? '') === 'super_admin';
 }
 
 /**
@@ -53,9 +61,9 @@ function get_logged_in_user($pdo) {
  */
 function require_login() {
     if (!is_logged_in()) {
-        // Detect path to redirect properly
-        $redirect_to = (strpos($_SERVER['SCRIPT_NAME'], '/admin/') !== false) ? '../login.php' : 'login.php';
-        header("Location: " . $redirect_to);
+        // "login.php" resolves within the current folder: admin-area pages land
+        // on the dedicated /admin/login.php, public/member pages on /login.php.
+        header("Location: login.php");
         exit;
     }
 }
@@ -68,6 +76,22 @@ function require_admin() {
     if (!is_admin()) {
         // Not an admin, redirect to public index
         $redirect_to = (strpos($_SERVER['SCRIPT_NAME'], '/admin/') !== false) ? '../index.php' : 'index.php';
+        header("Location: " . $redirect_to);
+        exit;
+    }
+}
+
+/**
+ * Restrict a whole page to super admin users. The Users page (admin/users.php) is
+ * shared by all admins and gates individual actions inline with is_super_admin()
+ * instead, but this helper is kept for any fully super-admin-only page.
+ * A plain admin is sent back to the dashboard with an explanatory flash.
+ */
+function require_super_admin() {
+    require_admin();
+    if (!is_super_admin()) {
+        $_SESSION['flash_error'] = "That area is restricted to the super administrator.";
+        $redirect_to = (strpos($_SERVER['SCRIPT_NAME'], '/admin/') !== false) ? 'index.php' : 'admin/index.php';
         header("Location: " . $redirect_to);
         exit;
     }

@@ -44,8 +44,8 @@ if (is_logged_in() && is_member() && isset($pdo)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TAR Coffee - Online Coffee Shop</title>
     
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="<?= $base_path ?>assets/css/style.css">
+    <!-- Custom CSS (?v= busts the browser cache whenever the file changes) -->
+    <link rel="stylesheet" href="<?= $base_path ?>assets/css/style.css?v=<?= @filemtime(__DIR__ . '/../assets/css/style.css') ?>">
 </head>
 <body>
 
@@ -70,7 +70,7 @@ if (is_logged_in() && is_member() && isset($pdo)) {
                     <li class="nav-item"><a href="<?= $base_path ?>admin/products.php" class="<?= trim(nav_active('products.php', true, $current_page, $is_admin_dir)) ?>">Products</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/option_templates.php" class="<?= trim(nav_active('option_templates.php', true, $current_page, $is_admin_dir)) ?>">Option Templates</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/vouchers.php" class="<?= trim(nav_active('vouchers.php', true, $current_page, $is_admin_dir)) ?>">Vouchers</a></li>
-                    <li class="nav-item"><a href="<?= $base_path ?>admin/members.php" class="<?= trim(nav_active('members.php', true, $current_page, $is_admin_dir)) ?>">Members</a></li>
+                    <li class="nav-item"><a href="<?= $base_path ?>admin/users.php" class="<?= trim(nav_active('users.php', true, $current_page, $is_admin_dir)) ?>">Users</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/orders.php" class="<?= trim(nav_active('orders.php', true, $current_page, $is_admin_dir)) ?>">Orders</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>admin/reports.php" class="<?= trim(nav_active('reports.php', true, $current_page, $is_admin_dir)) ?>">Reports</a></li>
                 <?php elseif (is_member()): ?>
