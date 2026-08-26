@@ -378,16 +378,12 @@ INSERT INTO `products` (`id`, `category_id`, `name`, `description`, `price`, `st
 (81, 6, 'Sausage Roll', 'Flaky puff pastry wrapped around a seasoned chicken sausage.', 8.00, 15),
 (82, 6, 'Pancake Stack', 'Three fluffy buttermilk pancakes with maple syrup and butter.', 15.00, 10);
 
--- Product Images
-INSERT INTO `product_images` (`product_id`, `image_path`, `is_primary`) VALUES
-(1, 'caramel_macchiato.jpg', 1),
-(1, 'caramel_macchiato_topview.jpg', 0),
-(2, 'flat_white.jpg', 1),
-(4, 'iced_matcha.jpg', 1),
-(5, 'butter_croissant.jpg', 1),
-(6, 'chocolate_cookie.jpg', 1),
-(7, 'signature_beans.jpg', 1),
-(8, 'stainless_tumbler.jpg', 1);
+-- Product Images: one primary placeholder per product. The image files live in
+-- uploads/products/product-{id}.jpg and are committed to the repo, so a fresh
+-- checkout already has them (regenerate with tools/generate_placeholder_images.php).
+-- Drop a real photo in over any file (keep the name) to replace it - no SQL change.
+INSERT INTO `product_images` (`product_id`, `image_path`, `is_primary`)
+SELECT `id`, CONCAT('product-', `id`, '.jpg'), 1 FROM `products`;
 
 -- Option Templates: the reusable library admin can opt individual products into via checkboxes,
 -- instead of retyping (and mistyping) the same option sets on every product.
