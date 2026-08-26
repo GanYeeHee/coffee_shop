@@ -28,8 +28,9 @@ $font         = 'C:/Windows/Fonts/arialbd.ttf';
 $hasFont      = is_file($font);
 $realProduct2 = $outDir . '/product_1787474167_2_872.jpg';
 
+// 4:5 portrait to match the storefront card grid.
 const IMG_W = 800;
-const IMG_H = 600;
+const IMG_H = 1000;
 
 // category_id => [r, g, b] (coffee-shop earth tones)
 $palette = [
