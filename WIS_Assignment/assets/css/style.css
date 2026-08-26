@@ -950,8 +950,10 @@ td.col-email {
 /* Card Detail Page */
 .detail-layout {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 360px) 1fr;
     gap: 3rem;
+    max-width: 960px;
+    margin: 0 auto;
     background-color: var(--bg-white);
     padding: 2.5rem;
     border-radius: var(--radius-md);
@@ -963,7 +965,7 @@ td.col-email {
     border-radius: var(--radius-md);
     overflow: hidden;
     border: 1px solid var(--border-color);
-    aspect-ratio: 4/3;
+    aspect-ratio: 4/5; /* match the home page product-card photo ratio */
     background-color: #EFEBE9;
 }
 
@@ -1803,6 +1805,10 @@ footer h4 {
     .detail-layout {
         grid-template-columns: 1fr;
         gap: 1.5rem;
+    }
+    .detail-img-container {
+        max-width: 360px;
+        margin: 0 auto;
     }
 }
 
