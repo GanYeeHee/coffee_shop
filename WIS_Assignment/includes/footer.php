@@ -30,8 +30,8 @@
 <!-- Include jQuery (hosted locally, no external dependency) -->
 <script src="<?= $base_path ?>assets/js/jquery-3.7.1.min.js"></script>
 
-<!-- Include Custom JS -->
-<script src="<?= $base_path ?>assets/js/app.js"></script>
+<!-- Include Custom JS (?v= busts the browser cache whenever the file changes) -->
+<script src="<?= $base_path ?>assets/js/app.js?v=<?= @filemtime(__DIR__ . '/../assets/js/app.js') ?>"></script>
 
 </body>
 </html>

@@ -8,11 +8,15 @@
  * without a full page reload.
  *
  * Expects in scope: $products, $categories, $cat_id, $search, $pg, $pager_params.
+ * Optional in scope: $is_best (true on the "Best Sellers" virtual category).
  */
+$is_best = $is_best ?? false;
 ?>
 <h2 class="section-title">
     <?php
-    if ($cat_id > 0) {
+    if ($is_best) {
+        echo 'Best Sellers';
+    } elseif ($cat_id > 0) {
         // Find category name
         $cat_name = 'Products';
         foreach ($categories as $c) {

@@ -1,6 +1,160 @@
 <?php
-require_once __DIR__ . '/../includes/header.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validation.php';
+
+/**
+ * Apply an order status transition (Accept / Complete / Cancel) using the same
+ * guard rules for both the AJAX and the plain-form code paths.
+ * Returns ['ok' => bool, 'message' => string, 'order' => ?array]; on success
+ * 'order' carries the row with its status already updated.
+ */
+function apply_order_transition(PDO $pdo, string $action, int $order_id): array {
+    $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
+    $stmt->execute([$order_id]);
+    $order = $stmt->fetch();
+
+    if (!$order) {
+        return ['ok' => false, 'message' => 'Order not found.', 'order' => null];
+    }
+
+    if ($action === 'mark_processing' && $order['status'] === 'Pending') {
+        $pdo->prepare("UPDATE orders SET status = 'Processing' WHERE id = ?")->execute([$order_id]);
+        $order['status'] = 'Processing';
+        return ['ok' => true, 'message' => "Order #{$order_id} marked as Processing.", 'order' => $order];
+    }
+
+    if ($action === 'mark_completed' && $order['status'] === 'Processing') {
+        $pdo->prepare("UPDATE orders SET status = 'Completed' WHERE id = ?")->execute([$order_id]);
+        $order['status'] = 'Completed';
+        return ['ok' => true, 'message' => "Order #{$order_id} marked as Completed.", 'order' => $order];
+    }
+
+    if ($action === 'cancel_order' && $order['status'] === 'Pending') {
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Update status
+            $pdo->prepare("UPDATE orders SET status = 'Cancelled' WHERE id = ?")->execute([$order_id]);
+
+            // 2. Refund inventory for every line item still linked to a product
+            $items_stmt = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+            $items_stmt->execute([$order_id]);
+            $stock_stmt = $pdo->prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
+            foreach ($items_stmt->fetchAll() as $item) {
+                if (!empty($item['product_id'])) {
+                    $stock_stmt->execute([$item['quantity'], $item['product_id']]);
+                }
+            }
+
+            $pdo->commit();
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            return ['ok' => false, 'message' => "Failed to cancel order: " . $e->getMessage(), 'order' => null];
+        }
+        $order['status'] = 'Cancelled';
+        return ['ok' => true, 'message' => "Order #{$order_id} cancelled. Stock levels restored.", 'order' => $order];
+    }
+
+    return ['ok' => false, 'message' => 'Invalid status transition.', 'order' => null];
+}
+
+/**
+ * Status badge markup for an order. The 'order-status-badge' hook lets the AJAX
+ * handler swap it in place after a transition.
+ */
+function order_status_badge(string $status): string {
+    return '<span class="badge order-status-badge badge-' . strtolower($status)
+         . '">' . htmlspecialchars($status) . '</span>';
+}
+
+/**
+ * The status-transition buttons for one order. Shared by the initial page render
+ * and the AJAX response so the two never drift apart.
+ * $variant: 'row' for the compact registry cell, 'detail' for the receipt panel.
+ */
+function render_order_action_buttons(array $ord, string $base_qs, string $variant = 'row'): string {
+    $qs = $base_qs !== '' ? '?' . htmlspecialchars($base_qs, ENT_QUOTES) : '';
+    $id = (int) $ord['id'];
+    ob_start();
+
+    if ($variant === 'detail'):
+        if ($ord['status'] === 'Pending'): ?>
+            <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
+                <input type="hidden" name="action" value="mark_processing">
+                <input type="hidden" name="order_id" value="<?= $id ?>">
+                <button type="submit" class="btn btn-accent btn-block" style="text-align: center;">Accept Order (Mark as Processing)</button>
+            </form>
+            <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
+                <input type="hidden" name="action" value="cancel_order">
+                <input type="hidden" name="order_id" value="<?= $id ?>">
+                <button type="submit" class="btn btn-danger btn-block confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $id ?>? Stock will be refunded." style="text-align: center;">Cancel Order</button>
+            </form>
+        <?php elseif ($ord['status'] === 'Processing'): ?>
+            <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
+                <input type="hidden" name="action" value="mark_completed">
+                <input type="hidden" name="order_id" value="<?= $id ?>">
+                <button type="submit" class="btn btn-block" style="text-align: center; background-color: var(--success); color: white;">Mark as Completed</button>
+            </form>
+        <?php endif;
+    else:
+        if ($ord['status'] === 'Pending'): ?>
+            <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
+                <input type="hidden" name="action" value="mark_processing">
+                <input type="hidden" name="order_id" value="<?= $id ?>">
+                <button type="submit" class="btn btn-accent btn-sm btn-xs">Accept</button>
+            </form>
+            <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
+                <input type="hidden" name="action" value="cancel_order">
+                <input type="hidden" name="order_id" value="<?= $id ?>">
+                <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $id ?>? Stock will be refunded.">Cancel</button>
+            </form>
+        <?php elseif ($ord['status'] === 'Processing'): ?>
+            <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
+                <input type="hidden" name="action" value="mark_completed">
+                <input type="hidden" name="order_id" value="<?= $id ?>">
+                <button type="submit" class="btn btn-primary btn-sm btn-xs" style="background-color: var(--success);">Complete</button>
+            </form>
+        <?php endif;
+    endif;
+
+    return trim(ob_get_clean());
+}
+
+// --- AJAX status transition: update the row in place, no full-page reload ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === 'order_action') {
+    header('Content-Type: application/json');
+
+    if (!is_admin()) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Your session has expired. Please reload and log in again.']);
+        exit;
+    }
+
+    // Keep base_qs raw (query-safe chars only) - sanitize_input would HTML-encode its '&'.
+    $base_qs = preg_replace('/[^A-Za-z0-9_\-=&%.]+/', '', $_POST['base_qs'] ?? '');
+    $_POST = sanitize_input($_POST);
+
+    $result = apply_order_transition($pdo, $_POST['action'] ?? '', intval($_POST['order_id'] ?? 0));
+
+    if (!$result['ok']) {
+        echo json_encode(['success' => false, 'message' => $result['message']]);
+        exit;
+    }
+
+    $ord = $result['order'];
+    echo json_encode([
+        'success' => true,
+        'message' => $result['message'],
+        'status' => $ord['status'],
+        'badge_html' => order_status_badge($ord['status']),
+        'row_actions_html' => render_order_action_buttons($ord, $base_qs, 'row'),
+        'detail_actions_html' => render_order_action_buttons($ord, $base_qs, 'detail'),
+    ]);
+    exit;
+}
+
+require_once __DIR__ . '/../includes/header.php';
 
 require_admin();
 
@@ -20,59 +174,12 @@ $base_params = array_filter([
 $base_qs = http_build_query($base_params);
 $has_active_filters = !empty($base_params);
 
-// Handle Order Status Transitions
+// Handle Order Status Transitions (no-JS fallback; JS submits these via AJAX above)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $_POST = sanitize_input($_POST);
-    $action = $_POST['action'];
-    $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
-    
-    // Fetch order details
-    $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
-    $stmt->execute([$order_id]);
-    $order = $stmt->fetch();
-    
-    if ($order) {
-        if ($action === 'mark_processing' && $order['status'] === 'Pending') {
-            $stmt = $pdo->prepare("UPDATE orders SET status = 'Processing' WHERE id = ?");
-            $stmt->execute([$order_id]);
-            $_SESSION['flash_success'] = "Order #{$order_id} marked as Processing.";
-        } elseif ($action === 'mark_completed' && $order['status'] === 'Processing') {
-            $stmt = $pdo->prepare("UPDATE orders SET status = 'Completed' WHERE id = ?");
-            $stmt->execute([$order_id]);
-            $_SESSION['flash_success'] = "Order #{$order_id} marked as Completed.";
-        } elseif ($action === 'cancel_order' && $order['status'] === 'Pending') {
-            try {
-                $pdo->beginTransaction();
-                
-                // 1. Update status
-                $stmt = $pdo->prepare("UPDATE orders SET status = 'Cancelled' WHERE id = ?");
-                $stmt->execute([$order_id]);
-                
-                // 2. Refund inventory
-                $items_stmt = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
-                $items_stmt->execute([$order_id]);
-                $items = $items_stmt->fetchAll();
-                
-                $stock_stmt = $pdo->prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
-                foreach ($items as $item) {
-                    if (!empty($item['product_id'])) {
-                        $stock_stmt->execute([$item['quantity'], $item['product_id']]);
-                    }
-                }
-                
-                $pdo->commit();
-                $_SESSION['flash_success'] = "Order #{$order_id} cancelled. Stock levels restored.";
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                $_SESSION['flash_error'] = "Failed to cancel order: " . $e->getMessage();
-            }
-        } else {
-            $_SESSION['flash_error'] = "Invalid status transition.";
-        }
-    } else {
-        $_SESSION['flash_error'] = "Order not found.";
-    }
-    
+    $result = apply_order_transition($pdo, $_POST['action'], intval($_POST['order_id'] ?? 0));
+    $_SESSION[$result['ok'] ? 'flash_success' : 'flash_error'] = $result['message'];
+
     header("Location: orders.php?" . $base_qs);
     exit;
 }
@@ -236,32 +343,12 @@ unset($_SESSION['flash_error']);
                                 <td><?= htmlspecialchars($ord['username'] ?? 'Guest/Deleted') ?></td>
                                 <td><?= date('d M Y, h:i A', strtotime($ord['order_date'])) ?></td>
                                 <td style="font-weight: 600; color: var(--primary-dark);">RM<?= number_format($ord['total_price'], 2) ?></td>
-                                <td>
-                                    <span class="badge badge-<?= strtolower($ord['status']) ?>">
-                                        <?= htmlspecialchars($ord['status']) ?>
-                                    </span>
-                                </td>
-                                <td style="display: flex; gap: 0.3rem;">
-                                    <a href="orders.php?<?= $base_qs !== '' ? $base_qs . '&' : '' ?>detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm btn-xs">Details</a>
-                                    
-                                    <?php if ($ord['status'] === 'Pending'): ?>
-                                        <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
-                                            <input type="hidden" name="action" value="mark_processing">
-                                            <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-accent btn-sm btn-xs">Accept</button>
-                                        </form>
-                                        <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
-                                            <input type="hidden" name="action" value="cancel_order">
-                                            <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $ord['id'] ?>? Stock will be refunded.">Cancel</button>
-                                        </form>
-                                    <?php elseif ($ord['status'] === 'Processing'): ?>
-                                        <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
-                                            <input type="hidden" name="action" value="mark_completed">
-                                            <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-primary btn-sm btn-xs" style="background-color: var(--success);">Complete</button>
-                                        </form>
-                                    <?php endif; ?>
+                                <td><?= order_status_badge($ord['status']) ?></td>
+                                <td class="order-actions-cell" data-order-id="<?= $ord['id'] ?>">
+                                    <div style="display: flex; gap: 0.3rem;">
+                                        <a href="orders.php?<?= $base_qs !== '' ? htmlspecialchars($base_qs, ENT_QUOTES) . '&' : '' ?>detail_id=<?= $ord['id'] ?>" class="btn btn-secondary btn-sm btn-xs">Details</a>
+                                        <span class="order-action-buttons" style="display: flex; gap: 0.3rem;"><?= render_order_action_buttons($ord, $base_qs, 'row') ?></span>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -281,7 +368,7 @@ unset($_SESSION['flash_error']);
             </div>
             
             <div style="font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem;">
-                <div><strong>Status:</strong> <span class="badge badge-<?= strtolower($expand_order['status']) ?>"><?= htmlspecialchars($expand_order['status']) ?></span></div>
+                <div><strong>Status:</strong> <?= order_status_badge($expand_order['status']) ?></div>
                 <div><strong>Customer:</strong> <?= htmlspecialchars($expand_order['username'] ?? 'Guest/Deleted') ?> (<?= htmlspecialchars($expand_order['user_email'] ?? 'N/A') ?>)</div>
                 <div><strong>Phone:</strong> <?= htmlspecialchars($expand_order['user_phone'] ?? 'N/A') ?></div>
                 <div><strong>Date Ordered:</strong> <?= date('d M Y, h:i A', strtotime($expand_order['order_date'])) ?></div>
@@ -332,26 +419,10 @@ unset($_SESSION['flash_error']);
             </table>
             
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                <?php if ($expand_order['status'] === 'Pending'): ?>
-                    <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
-                        <input type="hidden" name="action" value="mark_processing">
-                        <input type="hidden" name="order_id" value="<?= $expand_order['id'] ?>">
-                        <button type="submit" class="btn btn-accent btn-block" style="text-align: center;">Accept Order (Mark as Processing)</button>
-                    </form>
-                    <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
-                        <input type="hidden" name="action" value="cancel_order">
-                        <input type="hidden" name="order_id" value="<?= $expand_order['id'] ?>">
-                        <button type="submit" class="btn btn-danger btn-block confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $expand_order['id'] ?>? Stock will be refunded." style="text-align: center;">Cancel Order</button>
-                    </form>
-                <?php elseif ($expand_order['status'] === 'Processing'): ?>
-                    <form action="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" method="POST" style="margin:0;">
-                        <input type="hidden" name="action" value="mark_completed">
-                        <input type="hidden" name="order_id" value="<?= $expand_order['id'] ?>">
-                        <button type="submit" class="btn btn-block" style="text-align: center; background-color: var(--success); color: white;">Mark as Completed</button>
-                    </form>
-                <?php endif; ?>
-                
-                <a href="orders.php<?= $base_qs !== '' ? '?' . $base_qs : '' ?>" class="btn btn-secondary btn-block" style="text-align: center;">Close Receipt</a>
+                <div class="order-detail-actions" data-order-id="<?= $expand_order['id'] ?>" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <?= render_order_action_buttons($expand_order, $base_qs, 'detail') ?>
+                </div>
+                <a href="orders.php<?= $base_qs !== '' ? '?' . htmlspecialchars($base_qs, ENT_QUOTES) : '' ?>" class="btn btn-secondary btn-block" style="text-align: center;">Close Receipt</a>
             </div>
         </section>
     <?php endif; ?>

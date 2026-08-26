@@ -1347,6 +1347,43 @@ table.table tr:nth-child(even) {
     min-width: 160px;
 }
 
+/* Batch-action toolbar (admin products list + cart) — shown by app.js only
+   while at least one row checkbox is selected. */
+.bulk-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-cream);
+}
+
+.bulk-bar .form-control {
+    width: auto;
+    padding: 0.35rem 0.5rem;
+}
+
+.bulk-bar input[type="number"] {
+    width: 110px;
+}
+
+/* Checkbox column in .table lists */
+table.table th.col-check,
+table.table td.col-check {
+    width: 36px;
+    text-align: center;
+}
+
+table.table input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
 .field-row-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;

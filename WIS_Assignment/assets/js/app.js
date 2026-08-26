@@ -192,10 +192,11 @@ $(document).ready(function() {
         // Keep the sidebar "active" state and the search box's category scope
         // in sync with whichever URL we just loaded.
         var syncShopControls = function (url) {
-            var catId = (url.match(/[?&]cat_id=(\d+)/) || [])[1] || '';
+            // cat_id is usually numeric but can be the string "best" (Best Sellers).
+            var catId = (url.match(/[?&]cat_id=([^&]+)/) || [])[1] || '';
 
             $('.filter-list a').removeClass('active').each(function () {
-                var linkCat = (($(this).attr('href') || '').match(/[?&]cat_id=(\d+)/) || [])[1] || '';
+                var linkCat = (($(this).attr('href') || '').match(/[?&]cat_id=([^&]+)/) || [])[1] || '';
                 if (linkCat === catId) {
                     $(this).addClass('active');
                 }
@@ -320,6 +321,244 @@ $(document).ready(function() {
             if (e.key === 'Escape' || e.keyCode === 27) {
                 window.location.href = $drawerScrim.attr('href');
             }
+        });
+    }
+
+    // 15. Row selection wiring shared by the admin products list and the cart:
+    //     select-all checkbox, a live "N selected" count, and showing the bulk bar
+    //     only while something is selected.
+    var wireBulkSelection = function (opts) {
+        if (!$(opts.selectAll).length) {
+            return null;
+        }
+
+        var refresh = function () {
+            var $boxes = $(opts.rowCb);
+            var checked = $boxes.filter(':checked').length;
+            $(opts.count).text(checked + ' selected');
+            $(opts.bar).toggleClass('is-hidden', checked === 0);
+            $(opts.selectAll).prop('checked', checked > 0 && checked === $boxes.length);
+            $(opts.selectAll).prop('indeterminate', checked > 0 && checked < $boxes.length);
+        };
+
+        $(document).on('change', opts.selectAll, function () {
+            $(opts.rowCb).prop('checked', this.checked);
+            refresh();
+        });
+        $(document).on('change', opts.rowCb, refresh);
+
+        return {
+            refresh: refresh,
+            checkedIds: function () {
+                return $(opts.rowCb).filter(':checked').map(function () { return this.value; }).get();
+            }
+        };
+    };
+
+    // 15a. Admin > Products: batch price update ("increase prices") + batch delete (AJAX).
+    if ($('#bulk-form').length) {
+        var productSel = wireBulkSelection({
+            selectAll: '#bulk-select-all',
+            rowCb: '#bulk-form .bulk-cb',
+            bar: '#bulk-bar',
+            count: '#bulk-count'
+        });
+
+        var showBulkMsg = function (type, text) {
+            $('#bulk-msg').html('<div class="alert alert-' + type + '">' + text + '</div>');
+        };
+
+        // The bulk bar drives everything through $.ajax; never let an Enter key
+        // in the amount field submit the wrapping form as a normal page POST.
+        $('#bulk-form').on('submit', function (e) { e.preventDefault(); });
+
+        $('#bulk-price-apply').on('click', function () {
+            var ids = productSel.checkedIds();
+            if (!ids.length) { showBulkMsg('danger', 'Select at least one product first.'); return; }
+
+            var $btn = $(this).prop('disabled', true);
+            $.ajax({
+                url: 'products.php',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'batch_price',
+                    ids: ids,
+                    mode: $('#bulk-mode').val(),
+                    kind: $('#bulk-kind').val(),
+                    value: $('#bulk-value').val()
+                },
+                success: function (res) {
+                    if (res.success) {
+                        $.each(res.prices, function (id, price) {
+                            $('tr[data-product-id="' + id + '"] .product-price-cell')
+                                .text('RM' + Number(price).toFixed(2));
+                        });
+                        showBulkMsg('success', res.message);
+                    } else {
+                        showBulkMsg('danger', res.message || 'Update failed.');
+                        if (res.redirect) { window.location.href = res.redirect; }
+                    }
+                },
+                error: function () { showBulkMsg('danger', 'An error occurred while updating prices.'); },
+                complete: function () { $btn.prop('disabled', false); }
+            });
+        });
+
+        $('#bulk-delete').on('click', function () {
+            var ids = productSel.checkedIds();
+            if (!ids.length) { showBulkMsg('danger', 'Select at least one product first.'); return; }
+            if (!confirm('Delete ' + ids.length + ' selected product(s)? This also permanently removes their image files and cannot be undone.')) {
+                return;
+            }
+
+            var $btn = $(this).prop('disabled', true);
+            $.ajax({
+                url: 'products.php',
+                type: 'POST',
+                dataType: 'json',
+                data: { action: 'batch_delete', ids: ids },
+                success: function (res) {
+                    if (res.success) {
+                        $.each(res.deleted, function (i, id) {
+                            $('tr[data-product-id="' + id + '"]').remove();
+                        });
+                        showBulkMsg('success', res.message);
+                        if (!$('#bulk-form .bulk-cb').length) {
+                            window.location.reload();
+                        } else {
+                            productSel.refresh();
+                        }
+                    } else {
+                        showBulkMsg('danger', res.message || 'Delete failed.');
+                        if (res.redirect) { window.location.href = res.redirect; }
+                    }
+                },
+                error: function () { showBulkMsg('danger', 'An error occurred while deleting.'); },
+                complete: function () { $btn.prop('disabled', false); }
+            });
+        });
+    }
+
+    // 15b. Member > Cart: remove several selected items in one request (AJAX).
+    if ($('#cart-bulk-bar').length) {
+        var cartSel = wireBulkSelection({
+            selectAll: '#cart-select-all',
+            rowCb: '.cart-cb',
+            bar: '#cart-bulk-bar',
+            count: '#cart-bulk-count'
+        });
+
+        $('#cart-bulk-remove').on('click', function () {
+            var ids = cartSel.checkedIds();
+            if (!ids.length) { return; }
+            if (!confirm('Remove ' + ids.length + ' selected item(s) from your cart?')) { return; }
+
+            var $btn = $(this).prop('disabled', true);
+            $.ajax({
+                url: 'cart.php',
+                type: 'POST',
+                dataType: 'json',
+                data: { action: 'ajax_batch_remove', ids: ids },
+                success: function (res) {
+                    if (res.success) {
+                        $.each(res.removed, function (i, id) {
+                            $('tr[data-cart-row="' + id + '"]').remove();
+                        });
+                        if (!$('.cart-cb').length) {
+                            window.location.reload();
+                            return;
+                        }
+                        $('#cart-subtotal-value, #cart-total-value').text('RM' + res.grand_total.toFixed(2));
+                        var $badge = $('.cart-count');
+                        if ($badge.length) { $badge.text(res.cart_count); }
+                        cartSel.refresh();
+                    } else {
+                        alert(res.message || 'Could not remove items.');
+                        if (res.redirect) { window.location.href = res.redirect; }
+                    }
+                },
+                error: function () { alert('An error occurred while removing items.'); },
+                complete: function () { $btn.prop('disabled', false); }
+            });
+        });
+    }
+
+    // 16. Admin > Orders registry: accept / complete / cancel an order without a
+    //     full page reload. Only the affected row - and the receipt panel, if it
+    //     is open for that order - is updated. Without JavaScript the same forms
+    //     still POST normally and the server redirects back.
+    if ($('.order-actions-cell').length || $('.order-detail-actions').length) {
+
+        // Preserve the active status/search/date filters when the fallback
+        // form markup is rebuilt from an AJAX response.
+        var ordersBaseQs = window.location.search.replace(/^\?/, '');
+        var activeStatusFilter = (window.location.search.match(/[?&]status=([^&]+)/) || [])[1] || 'All';
+        if (activeStatusFilter !== 'All') {
+            activeStatusFilter = decodeURIComponent(activeStatusFilter);
+        }
+
+        var showOrdersFlash = function (message, type) {
+            var $flash = $('#orders-ajax-flash');
+            if (!$flash.length) {
+                $flash = $('<div id="orders-ajax-flash"></div>').insertBefore('.list-detail-columns');
+            }
+            $flash
+                .attr('class', 'alert alert-' + (type === 'success' ? 'success' : 'danger'))
+                .text(message)
+                .show();
+            clearTimeout($flash.data('hideTimer'));
+            $flash.data('hideTimer', setTimeout(function () { $flash.fadeOut(); }, 4000));
+        };
+
+        $(document).on('submit', '.order-action-form', function (e) {
+            e.preventDefault();
+            var $form = $(this);
+            var orderId = $form.find('input[name=order_id]').val();
+            var $buttons = $form.closest('.order-actions-cell, .order-detail-actions').find('button');
+
+            // The Cancel button's confirm() already ran on click (.confirm-action);
+            // if it was declined this submit handler never fires.
+            $buttons.prop('disabled', true);
+
+            $.ajax({
+                url: 'orders.php',
+                type: 'POST',
+                dataType: 'json',
+                data: $form.serialize() + '&ajax=order_action&base_qs=' + encodeURIComponent(ordersBaseQs),
+                success: function (res) {
+                    if (!res || !res.success) {
+                        alert((res && res.message) || 'Could not update the order.');
+                        $buttons.prop('disabled', false);
+                        return;
+                    }
+
+                    // Update the registry row.
+                    var $cell = $('.order-actions-cell[data-order-id="' + orderId + '"]');
+                    var $row = $cell.closest('tr');
+                    $row.find('.order-status-badge').replaceWith(res.badge_html);
+                    $cell.find('.order-action-buttons').html(res.row_actions_html);
+
+                    // Update the receipt panel too, if it is open for this order.
+                    var $detail = $('.order-detail-actions[data-order-id="' + orderId + '"]');
+                    if ($detail.length) {
+                        $detail.closest('.admin-panel').find('.order-status-badge').replaceWith(res.badge_html);
+                        $detail.html(res.detail_actions_html);
+                    }
+
+                    showOrdersFlash(res.message, 'success');
+
+                    // If a status tab is active and the order no longer belongs
+                    // in it, drop the row from view (matches the old full reload).
+                    if (activeStatusFilter !== 'All' && res.status !== activeStatusFilter) {
+                        $row.fadeOut(400, function () { $(this).remove(); });
+                    }
+                },
+                error: function () {
+                    alert('An error occurred while updating the order. Please try again.');
+                    $buttons.prop('disabled', false);
+                }
+            });
         });
     }
 

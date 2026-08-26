@@ -1,4 +1,91 @@
 <?php
+// AJAX batch operations: return JSON and stop before any layout is rendered.
+// Mirrors the pre-header AJAX branches in cart.php / checkout.php.
+$batch_actions = ['batch_price', 'batch_delete'];
+if (isset($_POST['action']) && in_array($_POST['action'], $batch_actions, true)) {
+    require_once __DIR__ . '/../includes/db.php';
+    require_once __DIR__ . '/../includes/auth.php';
+    require_once __DIR__ . '/../includes/validation.php';
+    header('Content-Type: application/json');
+
+    if (!is_admin()) {
+        echo json_encode(['success' => false, 'message' => 'Not authorized.', 'redirect' => 'login.php']);
+        exit;
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['ids'] ?? [])))));
+    if (!$ids) {
+        echo json_encode(['success' => false, 'message' => 'No products selected.']);
+        exit;
+    }
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+
+    if ($_POST['action'] === 'batch_delete') {
+        try {
+            // Collect image files before the cascading delete removes product_images rows.
+            $img_stmt = $pdo->prepare("SELECT image_path FROM product_images WHERE product_id IN ($ph)");
+            $img_stmt->execute($ids);
+            $files = $img_stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            $pdo->prepare("DELETE FROM products WHERE id IN ($ph)")->execute($ids);
+
+            foreach ($files as $f) {
+                $path = __DIR__ . '/../uploads/products/' . $f;
+                if (!empty($f) && is_file($path)) {
+                    unlink($path);
+                }
+            }
+            echo json_encode([
+                'success' => true,
+                'deleted' => $ids,
+                'message' => count($ids) . ' product(s) deleted.'
+            ]);
+        } catch (PDOException $e) {
+            echo json_encode(['success' => false, 'message' => 'Delete failed: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    // batch_price: adjust the price of every selected product with one UPDATE.
+    $mode = $_POST['mode'] ?? '';   // increase | decrease | set
+    $kind = $_POST['kind'] ?? '';   // percent | amount
+    $value = $_POST['value'] ?? '';
+
+    if (!is_numeric($value) || $value + 0 <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Enter a positive number.']);
+        exit;
+    }
+    $v = round($value + 0, 2);
+
+    switch ("$mode:$kind") {
+        case 'increase:percent': $expr = "ROUND(price * (1 + ? / 100), 2)"; break;
+        case 'decrease:percent': $expr = "GREATEST(0.01, ROUND(price * (1 - ? / 100), 2))"; break;
+        case 'increase:amount':  $expr = "ROUND(price + ?, 2)"; break;
+        case 'decrease:amount':  $expr = "GREATEST(0.01, ROUND(price - ?, 2))"; break;
+        case 'set:amount':
+        case 'set:percent':      $expr = "?"; break;
+        default:
+            echo json_encode(['success' => false, 'message' => 'Invalid update option.']);
+            exit;
+    }
+
+    try {
+        $pdo->prepare("UPDATE products SET price = $expr WHERE id IN ($ph)")
+            ->execute(array_merge([$v], $ids));
+
+        $new_stmt = $pdo->prepare("SELECT id, price FROM products WHERE id IN ($ph)");
+        $new_stmt->execute($ids);
+        echo json_encode([
+            'success' => true,
+            'prices'  => $new_stmt->fetchAll(PDO::FETCH_KEY_PAIR),
+            'message' => count($ids) . ' product(s) repriced.'
+        ]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => 'Update failed: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../includes/validation.php';
 
@@ -379,55 +466,79 @@ unset($_SESSION['flash_error']);
         <?php if (empty($all_products)): ?>
             <p style="color: var(--text-muted); padding: 1rem 0;">No products found.</p>
         <?php else: ?>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Image</th>
-                            <th>Product Name</th>
-                            <th>Category</th>
-                            <th>Price</th>
-                            <th>Stock</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($all_products as $p): ?>
+            <form id="bulk-form" action="products.php" method="POST">
+                <!-- Batch-action toolbar: hidden until at least one row is checked (assets/js/app.js #15) -->
+                <div class="bulk-bar is-hidden" id="bulk-bar">
+                    <span class="badge" id="bulk-count">0 selected</span>
+
+                    <select id="bulk-mode" class="form-control">
+                        <option value="increase">Increase price</option>
+                        <option value="decrease">Decrease price</option>
+                        <option value="set">Set price to</option>
+                    </select>
+                    <select id="bulk-kind" class="form-control">
+                        <option value="percent">by %</option>
+                        <option value="amount">by RM</option>
+                    </select>
+                    <input type="number" id="bulk-value" class="form-control" min="0" step="0.01" placeholder="0.00">
+                    <button type="button" id="bulk-price-apply" class="btn btn-sm btn-accent">Apply</button>
+
+                    <button type="button" id="bulk-delete" class="btn btn-sm btn-danger">Delete selected</button>
+                </div>
+                <div id="bulk-msg"></div>
+
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
                             <tr>
-                                <td>
-                                    <?php
-                                    $photo_path = '../uploads/products/' . $p['primary_image'];
-                                    if (!empty($p['primary_image']) && file_exists(__DIR__ . '/' . $photo_path)):
-                                    ?>
-                                        <img src="<?= $photo_path ?>" class="img-thumbnail" alt="<?= htmlspecialchars($p['name']) ?>">
-                                    <?php else: ?>
-                                        <div class="img-thumbnail" style="background-color: var(--primary-light); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">☕</div>
-                                    <?php endif; ?>
-                                </td>
-                                <td><strong><?= htmlspecialchars($p['name']) ?></strong></td>
-                                <td><?= htmlspecialchars($p['category_name'] ?? 'Uncategorized') ?></td>
-                                <td style="font-weight: 500; color: var(--accent);">RM<?= number_format($p['price'], 2) ?></td>
-                                <td><?= $p['stock'] ?></td>
-                                <td>
-                                    <?php if ($p['stock'] == 0): ?>
-                                        <span class="stock-badge inline out-of-stock">Sold Out</span>
-                                    <?php elseif ($p['stock'] <= 5): ?>
-                                        <span class="stock-badge inline low-stock">Low Stock</span>
-                                    <?php else: ?>
-                                        <span class="stock-badge inline in-stock">In Stock</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
-                                    <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Options</a>
-                                    <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete product '<?= htmlspecialchars($p['name']) ?>'? This will permanently delete the item and all its image files from storage.">Delete</a>
-                                </td>
+                                <th class="col-check"><input type="checkbox" id="bulk-select-all" title="Select all"></th>
+                                <th>Image</th>
+                                <th>Product Name</th>
+                                <th>Category</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Status</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($all_products as $p): ?>
+                                <tr data-product-id="<?= $p['id'] ?>">
+                                    <td class="col-check"><input type="checkbox" class="bulk-cb" name="ids[]" value="<?= $p['id'] ?>"></td>
+                                    <td>
+                                        <?php
+                                        $photo_path = '../uploads/products/' . $p['primary_image'];
+                                        if (!empty($p['primary_image']) && file_exists(__DIR__ . '/' . $photo_path)):
+                                        ?>
+                                            <img src="<?= $photo_path ?>" class="img-thumbnail" alt="<?= htmlspecialchars($p['name']) ?>">
+                                        <?php else: ?>
+                                            <div class="img-thumbnail" style="background-color: var(--primary-light); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">☕</div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><strong><?= htmlspecialchars($p['name']) ?></strong></td>
+                                    <td><?= htmlspecialchars($p['category_name'] ?? 'Uncategorized') ?></td>
+                                    <td class="product-price-cell" style="font-weight: 500; color: var(--accent);">RM<?= number_format($p['price'], 2) ?></td>
+                                    <td><?= $p['stock'] ?></td>
+                                    <td>
+                                        <?php if ($p['stock'] == 0): ?>
+                                            <span class="stock-badge inline out-of-stock">Sold Out</span>
+                                        <?php elseif ($p['stock'] <= 5): ?>
+                                            <span class="stock-badge inline low-stock">Low Stock</span>
+                                        <?php else: ?>
+                                            <span class="stock-badge inline in-stock">In Stock</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
+                                        <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Options</a>
+                                        <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete product '<?= htmlspecialchars($p['name']) ?>'? This will permanently delete the item and all its image files from storage.">Delete</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </form>
             <?= render_pagination($pg, 'products.php', $pager_params) ?>
         <?php endif; ?>
     </div>

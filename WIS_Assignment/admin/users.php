@@ -12,6 +12,7 @@ function ua_icon($name) {
         'check'  => '<path d="M20 6 9 17l-5-5"/>',
         'unlock' => '<rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.7-1.5"/>',
         'shield' => '<path d="M12 3 5 6v5c0 4.5 3 7.6 7 8.8 4-1.2 7-4.3 7-8.8V6Z"/>',
+        'pencil' => '<path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17.2V20zM14.5 6.5l3 3"/>',
         'key'    => '<circle cx="9" cy="15" r="3.5"/><path d="m11.5 12.5 7.5-7.5M17 7l2.2 2.2M14.6 9.4 16.8 11.6"/>',
         'trash'  => '<path d="M4 7h16M10 7V5h4v2M6.5 7l1 12h9l1-12"/>',
     ];
@@ -49,6 +50,9 @@ $view_id     = isset($_GET['id']) ? intval($_GET['id']) : 0;
 // Create-account form repopulation
 $f_username = $f_full_name = $f_email = $f_phone = '';
 $f_role = 'admin';
+
+// Edit-details form repopulation (null = fall back to the stored value)
+$ed_username = $ed_full_name = $ed_email = $ed_phone = null;
 
 // ---- POST -----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -130,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         // fall through -> re-render the create panel with $errors
-    } elseif (in_array($action, ['toggle_block', 'unlock', 'set_role', 'delete', 'reset_pw'], true)) {
+    } elseif (in_array($action, ['toggle_block', 'unlock', 'set_role', 'delete', 'reset_pw', 'save_details'], true)) {
         $target_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
         $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
         $stmt->execute([$target_id]);
@@ -153,12 +157,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // set_role / delete / reset_pw are super-admin only; so is moderating an admin account.
-        $moderating_admin = in_array($action, ['toggle_block', 'unlock'], true) && $target['role'] === 'admin';
+        // set_role / delete / reset_pw are super-admin only; editing or moderating
+        // an admin account is too. Editing/moderating a member is open to any admin.
+        $moderating_admin = in_array($action, ['toggle_block', 'unlock', 'save_details'], true) && $target['role'] === 'admin';
         $super_only       = $moderating_admin || in_array($action, ['set_role', 'delete', 'reset_pw'], true);
         if ($super_only && !$is_super) {
             $_SESSION['flash_error'] = $moderating_admin
-                ? "Only the super administrator can moderate admin accounts."
+                ? "Only the super administrator can manage admin accounts."
                 : "That action is restricted to the super administrator.";
             header("Location: $redirect_self");
             exit;
@@ -201,26 +206,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // reset_pw
-        $new  = $_POST['new_password'] ?? '';
-        $conf = $_POST['confirm_password'] ?? '';
-        if (strlen($new) < 6) {
-            $errors['new_password'] = "Password must be at least 6 characters.";
-        } elseif ($new !== $conf) {
-            $errors['confirm_password'] = "Passwords do not match.";
-        }
+        if ($action === 'save_details') {
+            $ed_username  = $_POST['username'] ?? '';
+            $ed_full_name = $_POST['full_name'] ?? '';
+            $ed_email     = $_POST['email'] ?? '';
+            $ed_phone     = $_POST['phone'] ?? '';
 
-        if (empty($errors)) {
-            $pdo->prepare("UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?")
-                ->execute([password_hash($new, PASSWORD_DEFAULT), $target_id]);
-            $_SESSION['flash_success'] = "Password reset for '{$target['username']}'.";
-            header("Location: $redirect_self");
-            exit;
-        }
+            $errors = validate_required($_POST, [
+                'username'  => 'Username',
+                'full_name' => 'Full Name',
+                'email'     => 'Email',
+            ]);
+            if (empty($errors['username']) && ($e = validate_username($ed_username))) {
+                $errors['username'] = $e;
+            }
+            if (empty($errors['email']) && ($e = validate_email($ed_email))) {
+                $errors['email'] = $e;
+            }
+            if ($ed_phone !== '' && ($e = validate_phone($ed_phone))) {
+                $errors['phone'] = $e;
+            }
+            if (empty($errors['username'])) {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ? AND id != ?");
+                $stmt->execute([$ed_username, $target_id]);
+                if ($stmt->fetchColumn() > 0) {
+                    $errors['username'] = "Username is already taken.";
+                }
+            }
+            if (empty($errors['email'])) {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ? AND id != ?");
+                $stmt->execute([$ed_email, $target_id]);
+                if ($stmt->fetchColumn() > 0) {
+                    $errors['email'] = "Email is already registered to another account.";
+                }
+            }
 
-        // Validation failed - keep the reset panel open for this account.
-        $view_action = 'reset';
-        $view_id     = $target_id;
+            if (empty($errors)) {
+                $pdo->prepare("UPDATE users SET username = ?, full_name = ?, email = ?, phone = ? WHERE id = ?")
+                    ->execute([$ed_username, $ed_full_name, $ed_email, $ed_phone !== '' ? $ed_phone : null, $target_id]);
+                $_SESSION['flash_success'] = "Details updated for '{$ed_username}'.";
+                header("Location: users.php?detail_id=" . $target_id . $qs_amp);
+                exit;
+            }
+
+            // Validation failed - keep the edit panel open for this account.
+            $view_action = 'edit';
+            $view_id     = $target_id;
+        } else {
+            // reset_pw
+            $new  = $_POST['new_password'] ?? '';
+            $conf = $_POST['confirm_password'] ?? '';
+            if (strlen($new) < 6) {
+                $errors['new_password'] = "Password must be at least 6 characters.";
+            } elseif ($new !== $conf) {
+                $errors['confirm_password'] = "Passwords do not match.";
+            }
+
+            if (empty($errors)) {
+                $pdo->prepare("UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?")
+                    ->execute([password_hash($new, PASSWORD_DEFAULT), $target_id]);
+                $_SESSION['flash_success'] = "Password reset for '{$target['username']}'.";
+                header("Location: $redirect_self");
+                exit;
+            }
+
+            // Validation failed - keep the reset panel open for this account.
+            $view_action = 'reset';
+            $view_id     = $target_id;
+        }
     }
 }
 
@@ -251,6 +304,24 @@ if ($is_super && $view_action === 'reset' && $view_id > 0) {
     }
 }
 
+// ---- Edit-details panel target -----------------------------------------
+// Any admin may edit a member; only a super admin may edit another admin.
+$edit_target = null;
+if ($view_action === 'edit' && $view_id > 0) {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$view_id]);
+    $edit_target = $stmt->fetch();
+    $edit_blocked = !$edit_target
+        || $edit_target['id'] === $self_id
+        || $edit_target['role'] === 'super_admin'
+        || ($edit_target['role'] === 'admin' && !$is_super);
+    if ($edit_blocked) {
+        $_SESSION['flash_error'] = "That account's details cannot be edited here.";
+        header("Location: $redirect_self");
+        exit;
+    }
+}
+
 // ---- User list ----------------------------------------------------------
 $where  = [];
 $params = [];
@@ -275,8 +346,10 @@ $stmt->execute($params);
 $users = $stmt->fetchAll();
 
 // ---- Which contextual drawer (if any) is open --------------------------
-// The create form posts back to ?panel=create so it re-opens on validation error.
-if ($expand_user) {
+// The create/edit forms post back to their own view so they re-open on error.
+if ($edit_target) {
+    $drawer = 'edit';
+} elseif ($expand_user) {
     $drawer = 'detail';
 } elseif ($reset_target) {
     $drawer = 'reset';
@@ -388,6 +461,9 @@ unset($_SESSION['flash_error']);
                                             </a>
 
                                             <?php if ($can_moderate): ?>
+                                                <a href="users.php?action=edit&id=<?= $u['id'] ?><?= htmlspecialchars($qs_amp) ?>" class="row-menu-item" role="menuitem">
+                                                    <?= ua_icon('pencil') ?>Edit details
+                                                </a>
                                                 <?php $blocking = ($u['status'] === 'active'); ?>
                                                 <form action="users.php<?= htmlspecialchars($qs) ?>" method="POST">
                                                     <input type="hidden" name="action" value="toggle_block">
@@ -455,8 +531,10 @@ unset($_SESSION['flash_error']);
 
 <?php if ($drawer !== 'none'): ?>
     <a href="<?= htmlspecialchars($redirect_self) ?>" class="admin-drawer-scrim" aria-label="Close panel"></a>
-    <aside class="admin-drawer" role="dialog" aria-modal="true"
-           aria-label="<?= $drawer === 'detail' ? 'Account details' : ($drawer === 'reset' ? 'Reset password' : 'Create account') ?>">
+    <?php
+    $drawer_titles = ['detail' => 'Account details', 'edit' => 'Edit details', 'reset' => 'Reset password', 'create' => 'Create account'];
+    ?>
+    <aside class="admin-drawer" role="dialog" aria-modal="true" aria-label="<?= $drawer_titles[$drawer] ?? 'Panel' ?>">
 
         <?php if ($drawer === 'detail'): ?>
             <div class="admin-drawer-head">
@@ -532,7 +610,36 @@ unset($_SESSION['flash_error']);
                 </tbody>
             </table>
 
+            <?php
+            $exp_editable = $expand_user['id'] !== $self_id
+                && $expand_user['role'] !== 'super_admin'
+                && ($is_super || $expand_user['role'] !== 'admin');
+            ?>
+            <?php if ($exp_editable): ?>
+                <a href="users.php?action=edit&id=<?= $expand_user['id'] ?><?= htmlspecialchars($qs_amp) ?>" class="btn btn-primary btn-block" style="margin-bottom: 0.5rem;">Edit Details</a>
+            <?php endif; ?>
             <a href="<?= htmlspecialchars($redirect_self) ?>" class="btn btn-secondary btn-block">Close</a>
+
+        <?php elseif ($drawer === 'edit'): ?>
+            <div class="admin-drawer-head">
+                <h3>Edit Details</h3>
+                <a href="users.php?detail_id=<?= $edit_target['id'] ?><?= htmlspecialchars($qs_amp) ?>" class="admin-drawer-close" aria-label="Close">&times;</a>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Editing <strong>@<?= htmlspecialchars($edit_target['username']) ?></strong>
+                (<?= htmlspecialchars(str_replace('_', ' ', $edit_target['role'])) ?>).
+                Role, status and password are changed from the account's menu.
+            </p>
+            <form action="users.php<?= htmlspecialchars($qs) ?>" method="POST" novalidate>
+                <input type="hidden" name="action" value="save_details">
+                <input type="hidden" name="user_id" value="<?= $edit_target['id'] ?>">
+                <?= html_input('text', 'username', $ed_username ?? $edit_target['username'], 'Username', 'Login username', $errors) ?>
+                <?= html_input('text', 'full_name', $ed_full_name ?? $edit_target['full_name'], 'Full Name', 'Full name', $errors) ?>
+                <?= html_input('email', 'email', $ed_email ?? $edit_target['email'], 'Email Address', 'Account email', $errors) ?>
+                <?= html_input('text', 'phone', $ed_phone ?? ($edit_target['phone'] ?? ''), 'Phone (Optional)', 'e.g. 0123456789', $errors) ?>
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">Save Changes</button>
+                <a href="users.php?detail_id=<?= $edit_target['id'] ?><?= htmlspecialchars($qs_amp) ?>" class="btn btn-secondary btn-block" style="margin-top: 0.5rem; text-align: center;">Cancel</a>
+            </form>
 
         <?php elseif ($drawer === 'reset'): ?>
             <div class="admin-drawer-head">

@@ -44,8 +44,8 @@ if (is_logged_in() && is_member() && isset($pdo)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TAR Coffee - Online Coffee Shop</title>
     
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="<?= $base_path ?>assets/css/style.css">
+    <!-- Custom CSS (?v= busts the browser cache whenever the file changes) -->
+    <link rel="stylesheet" href="<?= $base_path ?>assets/css/style.css?v=<?= @filemtime(__DIR__ . '/../assets/css/style.css') ?>">
 </head>
 <body>
 
