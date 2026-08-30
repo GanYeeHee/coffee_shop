@@ -75,6 +75,8 @@ if (is_logged_in() && is_member() && isset($pdo)) {
                     <li class="nav-item"><a href="<?= $base_path ?>admin/reports.php" class="<?= trim(nav_active('reports.php', true, $current_page, $is_admin_dir)) ?>">Reports</a></li>
                 <?php elseif (is_member()): ?>
                     <!-- Member specific links -->
+                    <!-- [Fix] Favorites navigation link for members -->
+                    <li class="nav-item"><a href="<?= $base_path ?>favorites.php" class="<?= trim(nav_active('favorites.php', false, $current_page, $is_admin_dir)) ?>">Favorites ❤️</a></li>
                     <li class="nav-item"><a href="<?= $base_path ?>orders.php" class="<?= trim(nav_active('orders.php', false, $current_page, $is_admin_dir)) ?>">My Orders</a></li>
                     <li class="nav-item">
                         <a href="<?= $base_path ?>cart.php" class="cart-link<?= nav_active('cart.php', false, $current_page, $is_admin_dir) ?>">

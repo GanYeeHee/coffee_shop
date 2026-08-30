@@ -123,6 +123,7 @@ CREATE TABLE `products` (
   `description` TEXT DEFAULT NULL,
   `price` DECIMAL(10, 2) NOT NULL,
   `stock` INT UNSIGNED DEFAULT 0,
+  `status` ENUM('available', 'unavailable') NOT NULL DEFAULT 'available',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL,
   INDEX `idx_products_name` (`name`)
@@ -248,9 +249,20 @@ CREATE TABLE `payments` (
   `payment_method` ENUM('card', 'e_wallet', 'cash') NOT NULL DEFAULT 'card',
   `transaction_id` VARCHAR(100) DEFAULT NULL,
   `amount` DECIMAL(10, 2) NOT NULL,
-  `payment_status` ENUM('pending', 'completed', 'failed') NOT NULL DEFAULT 'completed',
+  `payment_status` ENUM('pending', 'completed', 'failed', 'refunded') NOT NULL DEFAULT 'completed',
   `paid_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17. User Favorites (Wishlist) Table
+CREATE TABLE `user_favorites` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `product_id` INT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `unique_user_product` (`user_id`, `product_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

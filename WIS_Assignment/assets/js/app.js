@@ -562,4 +562,51 @@ $(document).ready(function() {
         });
     }
 
+    // 25. [Feature: Favorites] Toggle favorite heart button handler (❤️ / 🤍)
+    $(document).on('click', '.btn-favorite', function (e) {
+        var $btn = $(this);
+        var productId = $btn.data('product-id');
+        if (!productId) return; // Allow normal link click to login page if guest
+
+        e.preventDefault();
+
+        $.ajax({
+            url: 'toggle_favorite.php',
+            type: 'POST',
+            dataType: 'json',
+            data: { product_id: productId, ajax: 1 },
+            success: function (res) {
+                if (res.redirect) {
+                    window.location.href = res.redirect;
+                    return;
+                }
+                if (res.success) {
+                    if (res.is_favorited) {
+                        $btn.addClass('is-favorited');
+                        $btn.find('.heart-icon').text('❤️');
+                        $btn.find('.fav-text').text('Favorited');
+                        $btn.attr('title', 'Remove from favorites');
+                    } else {
+                        $btn.removeClass('is-favorited');
+                        $btn.find('.heart-icon').text('🤍');
+                        $btn.find('.fav-text').text('Favorite');
+                        $btn.attr('title', 'Add to favorites');
+
+                        // If unfavorited on favorites.php, fade out and remove card
+                        if ($('#product-card-' + productId).length && window.location.pathname.indexOf('favorites.php') !== -1) {
+                            $('#product-card-' + productId).fadeOut(300, function () {
+                                $(this).remove();
+                                if ($('.product-card').length === 0) {
+                                    location.reload();
+                                }
+                            });
+                        }
+                    }
+                } else if (res.message) {
+                    alert(res.message);
+                }
+            }
+        });
+    });
+
 });

@@ -32,11 +32,20 @@ if ($id > 0) {
             $group['values'] = $option_values_stmt->fetchAll();
         }
         unset($group);
+
+        // [Fix] Check if the logged-in user has favorited this product
+        $is_favorited = false;
+        if (is_logged_in()) {
+            $fav_stmt = $pdo->prepare("SELECT id FROM user_favorites WHERE user_id = ? AND product_id = ?");
+            $fav_stmt->execute([$_SESSION['user_id'], $id]);
+            $is_favorited = (bool) $fav_stmt->fetch();
+        }
     }
 }
 
-if (!$product) {
-    echo '<div class="alert alert-danger">Product not found. <a href="index.php">Return to Menu</a></div>';
+if (!$product || ($product['status'] === 'unavailable' && !is_admin())) {
+    // [Fix] If product is marked as unavailable, block non-admin customers and prevent purchasing
+    echo '<div class="alert alert-danger">This product is currently unavailable. <a href="index.php">Return to Menu</a></div>';
     require_once __DIR__ . '/includes/footer.php';
     exit;
 }
@@ -118,8 +127,18 @@ unset($_SESSION['flash_error']);
 
     <!-- Product Info -->
     <div class="detail-info">
-        <span class="product-cat"><?= htmlspecialchars($product['category_name'] ?? 'Uncategorized') ?></span>
-        <h1><?= htmlspecialchars($product['name']) ?></h1>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.5rem;">
+            <h1 style="margin: 0;"><?= htmlspecialchars($product['name']) ?></h1>
+            <?php if (is_logged_in() && !is_admin()): ?>
+                <button type="button" class="btn-favorite btn-favorite-detail <?= $is_favorited ? 'is-favorited' : '' ?>" data-product-id="<?= $product['id'] ?>" title="<?= $is_favorited ? 'Remove from favorites' : 'Add to favorites' ?>">
+                    <span class="heart-icon"><?= $is_favorited ? '❤️' : '🤍' ?></span> <span class="fav-text" style="font-size: 0.85rem; font-weight: 600;"><?= $is_favorited ? 'Favorited' : 'Favorite' ?></span>
+                </button>
+            <?php elseif (!is_logged_in()): ?>
+                <a href="login.php" class="btn-favorite btn-favorite-detail" title="Login to save favorites">
+                    <span class="heart-icon">🤍</span> <span class="fav-text" style="font-size: 0.85rem; font-weight: 600;">Favorite</span>
+                </a>
+            <?php endif; ?>
+        </div>
         <div class="detail-price">RM<?= number_format($product['price'], 2) ?></div>
 
         <?php if ($rating_summary['review_count'] > 0): ?>

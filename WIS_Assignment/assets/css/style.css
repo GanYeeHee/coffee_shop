@@ -1621,6 +1621,7 @@ table.table input[type="checkbox"] {
 .badge-blocked { background-color: #FFEBEE; color: #B71C1C; }
 .badge-locked { background-color: #FFF3E0; color: #E65100; margin-left: 0.3rem; }
 .badge-failed { background-color: #FFEBEE; color: #B71C1C; }
+.badge-refunded { background-color: #EDE7F6; color: #4A148C; }
 .badge-flag-yes { background-color: #EFEBDD; color: #6B5B2A; }
 .badge-flag-no { background-color: #F1EEE8; color: #7C7166; }
 .badge-count { background-color: #EFEBE9; color: var(--text-main); font-weight: 600; }
@@ -1834,3 +1835,59 @@ footer h4 {
         gap: 1rem;
     }
 }
+
+/* [Feature: Favorites] Favorite Heart Button Styles */
+.product-img-wrapper {
+    position: relative;
+}
+
+.btn-favorite {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    width: 36px;
+    height: 36px;
+    background-color: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    z-index: 5;
+    text-decoration: none;
+    line-height: 1;
+    padding: 0;
+}
+
+.btn-favorite:hover {
+    transform: scale(1.15);
+    background-color: #ffffff;
+}
+
+.btn-favorite:active {
+    transform: scale(0.95);
+}
+
+.btn-favorite-detail {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    display: inline-flex;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    box-shadow: none;
+    border: 1px solid var(--border-color, #e0e0e0);
+    background-color: var(--bg-white, #fff);
+}
+
+.btn-favorite-detail:hover {
+    background-color: var(--bg-surface, #f9f9f9);
+    transform: none;
+}
+

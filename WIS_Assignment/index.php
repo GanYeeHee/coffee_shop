@@ -43,6 +43,7 @@ if ($is_best) {
                 WHERE o.status <> 'Cancelled' AND oi.product_id IS NOT NULL
                 GROUP BY oi.product_id
             ) s ON s.product_id = p.id
+            WHERE p.status = 'available'
             ORDER BY s.total_sold DESC, p.id DESC
             LIMIT $best_limit";
     $products = $pdo->query($sql)->fetchAll();
@@ -52,6 +53,7 @@ if ($is_best) {
         $products = $pdo->query("SELECT $card_cols
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.status = 'available'
             ORDER BY p.id DESC
             LIMIT $best_limit")->fetchAll();
     }
@@ -61,6 +63,9 @@ if ($is_best) {
     // Build the product query
     $where = [];
     $params = [];
+
+    // [Fix] Customer storefront only displays available products; hide unavailable products
+    $where[] = "p.status = 'available'";
 
     if ($cat_id > 0) {
         $where[] = "p.category_id = ?";
@@ -90,6 +95,14 @@ if ($is_best) {
 }
 
 $pager_params = array_filter(['cat_id' => $is_best ? 'best' : ($cat_id > 0 ? $cat_id : null), 'q' => $search !== '' ? $search : null]);
+
+// [Fix] Fetch product IDs favorited by the current logged-in user
+$user_favorites = [];
+if (is_logged_in()) {
+    $fav_stmt = $pdo->prepare("SELECT product_id FROM user_favorites WHERE user_id = ?");
+    $fav_stmt->execute([$_SESSION['user_id']]);
+    $user_favorites = $fav_stmt->fetchAll(PDO::FETCH_COLUMN);
+}
 
 // AJAX request: emit only the product-list fragment and stop before the layout.
 if ($shop_ajax) {
