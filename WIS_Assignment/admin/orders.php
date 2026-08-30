@@ -47,13 +47,18 @@ function apply_order_transition(PDO $pdo, string $action, int $order_id): array 
                 }
             }
 
+            // [Fix] Refund handling: If order has payment record (Card / E-Wallet completed), update payment_status to 'refunded'
+            $pdo->prepare("UPDATE payments SET payment_status = 'refunded' WHERE order_id = ? AND payment_status = 'completed'")->execute([$order_id]);
+            // If cash payment is pending, mark as 'failed'
+            $pdo->prepare("UPDATE payments SET payment_status = 'failed' WHERE order_id = ? AND payment_status = 'pending'")->execute([$order_id]);
+
             $pdo->commit();
         } catch (Exception $e) {
             $pdo->rollBack();
             return ['ok' => false, 'message' => "Failed to cancel order: " . $e->getMessage(), 'order' => null];
         }
         $order['status'] = 'Cancelled';
-        return ['ok' => true, 'message' => "Order #{$order_id} cancelled. Stock levels restored.", 'order' => $order];
+        return ['ok' => true, 'message' => "Order #{$order_id} cancelled. Stock restored and payment refunded.", 'order' => $order];
     }
 
     return ['ok' => false, 'message' => 'Invalid status transition.', 'order' => null];
@@ -88,7 +93,7 @@ function render_order_action_buttons(array $ord, string $base_qs, string $varian
             <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
                 <input type="hidden" name="action" value="cancel_order">
                 <input type="hidden" name="order_id" value="<?= $id ?>">
-                <button type="submit" class="btn btn-danger btn-block confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $id ?>? Stock will be refunded." style="text-align: center;">Cancel Order</button>
+                <button type="submit" class="btn btn-danger btn-block confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $id ?>? Stock will be restored and payment refunded." style="text-align: center;">Cancel Order</button>
             </form>
         <?php elseif ($ord['status'] === 'Processing'): ?>
             <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
@@ -107,7 +112,7 @@ function render_order_action_buttons(array $ord, string $base_qs, string $varian
             <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">
                 <input type="hidden" name="action" value="cancel_order">
                 <input type="hidden" name="order_id" value="<?= $id ?>">
-                <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $id ?>? Stock will be refunded.">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm btn-xs confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $id ?>? Stock will be restored and payment refunded.">Cancel</button>
             </form>
         <?php elseif ($ord['status'] === 'Processing'): ?>
             <form action="orders.php<?= $qs ?>" method="POST" class="order-action-form" style="margin:0;">

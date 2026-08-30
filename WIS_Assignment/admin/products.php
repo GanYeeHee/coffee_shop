@@ -22,26 +22,16 @@ if (isset($_POST['action']) && in_array($_POST['action'], $batch_actions, true))
 
     if ($_POST['action'] === 'batch_delete') {
         try {
-            // Collect image files before the cascading delete removes product_images rows.
-            $img_stmt = $pdo->prepare("SELECT image_path FROM product_images WHERE product_id IN ($ph)");
-            $img_stmt->execute($ids);
-            $files = $img_stmt->fetchAll(PDO::FETCH_COLUMN);
+            // [Fix] Batch action: Mark selected products as unavailable without deleting records or photos to preserve order history
+            $pdo->prepare("UPDATE products SET status = 'unavailable' WHERE id IN ($ph)")->execute($ids);
 
-            $pdo->prepare("DELETE FROM products WHERE id IN ($ph)")->execute($ids);
-
-            foreach ($files as $f) {
-                $path = __DIR__ . '/../uploads/products/' . $f;
-                if (!empty($f) && is_file($path)) {
-                    unlink($path);
-                }
-            }
             echo json_encode([
                 'success' => true,
                 'deleted' => $ids,
-                'message' => count($ids) . ' product(s) deleted.'
+                'message' => count($ids) . ' product(s) marked as unavailable.'
             ]);
         } catch (PDOException $e) {
-            echo json_encode(['success' => false, 'message' => 'Delete failed: ' . $e->getMessage()]);
+            echo json_encode(['success' => false, 'message' => 'Operation failed: ' . $e->getMessage()]);
         }
         exit;
     }
@@ -297,29 +287,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Handle Delete Operation
+// Handle Delete (Make Unavailable) Operation
 if ($action === 'delete' && $id > 0) {
     $stmt = $pdo->prepare("SELECT name FROM products WHERE id = ?");
     $stmt->execute([$id]);
     $prod = $stmt->fetch();
 
     if ($prod) {
-        // Grab image paths before the cascading delete removes the product_images rows
-        $img_stmt = $pdo->prepare("SELECT image_path FROM product_images WHERE product_id = ?");
-        $img_stmt->execute([$id]);
-        $images_to_remove = $img_stmt->fetchAll(PDO::FETCH_COLUMN);
-
-        $del_stmt = $pdo->prepare("DELETE FROM products WHERE id = ?");
+        // [Fix] Soft delete: Mark product as unavailable instead of deleting from database to keep past receipts intact
+        $del_stmt = $pdo->prepare("UPDATE products SET status = 'unavailable' WHERE id = ?");
         try {
             $del_stmt->execute([$id]);
-            foreach ($images_to_remove as $path) {
-                if (!empty($path) && file_exists(__DIR__ . '/../uploads/products/' . $path)) {
-                    unlink(__DIR__ . '/../uploads/products/' . $path);
-                }
-            }
-            $_SESSION['flash_success'] = "Product '{$prod['name']}' deleted successfully.";
+            $_SESSION['flash_success'] = "Product '{$prod['name']}' has been marked as unavailable.";
         } catch (PDOException $e) {
-            $_SESSION['flash_error'] = "Failed to delete product: " . $e->getMessage();
+            $_SESSION['flash_error'] = "Failed to update product: " . $e->getMessage();
+        }
+    } else {
+        $_SESSION['flash_error'] = "Product not found.";
+    }
+    header("Location: products.php");
+    exit;
+}
+
+// [Fix] Re-activate product: Restore status from unavailable back to available
+if ($action === 'restore' && $id > 0) {
+    $stmt = $pdo->prepare("SELECT name FROM products WHERE id = ?");
+    $stmt->execute([$id]);
+    $prod = $stmt->fetch();
+
+    if ($prod) {
+        $upd_stmt = $pdo->prepare("UPDATE products SET status = 'available' WHERE id = ?");
+        try {
+            $upd_stmt->execute([$id]);
+            $_SESSION['flash_success'] = "Product '{$prod['name']}' is now available.";
+        } catch (PDOException $e) {
+            $_SESSION['flash_error'] = "Failed to update product: " . $e->getMessage();
         }
     } else {
         $_SESSION['flash_error'] = "Product not found.";
@@ -376,11 +378,14 @@ if ($filter_category > 0) {
 }
 
 if ($filter_status === 'in_stock') {
-    $where[] = "p.stock > 5";
+    $where[] = "p.stock > 5 AND p.status = 'available'";
 } elseif ($filter_status === 'low_stock') {
-    $where[] = "p.stock > 0 AND p.stock <= 5";
+    $where[] = "p.stock > 0 AND p.stock <= 5 AND p.status = 'available'";
 } elseif ($filter_status === 'sold_out') {
-    $where[] = "p.stock = 0";
+    $where[] = "p.stock = 0 AND p.status = 'available'";
+} elseif ($filter_status === 'unavailable') {
+    // [Fix] Filter for unavailable products
+    $where[] = "p.status = 'unavailable'";
 }
 
 if (!empty($where)) {
@@ -454,6 +459,8 @@ unset($_SESSION['flash_error']);
                     <option value="in_stock" <?= $filter_status === 'in_stock' ? 'selected' : '' ?>>In Stock</option>
                     <option value="low_stock" <?= $filter_status === 'low_stock' ? 'selected' : '' ?>>Low Stock</option>
                     <option value="sold_out" <?= $filter_status === 'sold_out' ? 'selected' : '' ?>>Sold Out</option>
+                    <!-- [Fix] Option to filter unavailable products -->
+                    <option value="unavailable" <?= $filter_status === 'unavailable' ? 'selected' : '' ?>>Unavailable</option>
                 </select>
 
                 <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
@@ -520,7 +527,10 @@ unset($_SESSION['flash_error']);
                                     <td class="product-price-cell" style="font-weight: 500; color: var(--accent);">RM<?= number_format($p['price'], 2) ?></td>
                                     <td><?= $p['stock'] ?></td>
                                     <td>
-                                        <?php if ($p['stock'] == 0): ?>
+                                        <?php if ($p['status'] === 'unavailable'): ?>
+                                            <!-- [Fix] Display Unavailable badge if product is unavailable -->
+                                            <span class="stock-badge inline out-of-stock">Unavailable</span>
+                                        <?php elseif ($p['stock'] == 0): ?>
                                             <span class="stock-badge inline out-of-stock">Sold Out</span>
                                         <?php elseif ($p['stock'] <= 5): ?>
                                             <span class="stock-badge inline low-stock">Low Stock</span>
@@ -531,7 +541,13 @@ unset($_SESSION['flash_error']);
                                     <td>
                                         <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                         <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Options</a>
-                                        <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to delete product '<?= htmlspecialchars($p['name']) ?>'? This will permanently delete the item and all its image files from storage.">Delete</a>
+                                        <?php if ($p['status'] === 'unavailable'): ?>
+                                            <!-- [Fix] Provide Make Available button for unavailable products -->
+                                            <a href="products.php?action=restore&id=<?= $p['id'] ?>" class="btn btn-primary btn-sm">Make Available</a>
+                                        <?php else: ?>
+                                            <!-- [Fix] Prompt to mark product as unavailable rather than deleting permanently -->
+                                            <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to make product '<?= htmlspecialchars($p['name']) ?>' unavailable?">Delete</a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

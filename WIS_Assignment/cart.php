@@ -197,7 +197,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$product_id]);
         $product = $stmt->fetch();
 
-        if ($product && $product['stock'] > 0) {
+        // [Fix] Verify product is available and has stock before adding to cart
+        if ($product && $product['status'] === 'available' && $product['stock'] > 0) {
             $resolved = resolve_selected_options($pdo, $product_id, $selected_options);
 
             if ($resolved['error']) {
@@ -238,8 +239,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$product_id]);
         $product = $stmt->fetch();
 
-        if (!$owned || !$product) {
-            $_SESSION['flash_error'] = "Cart item not found.";
+        // [Fix] Check if product is unavailable or removed
+        if (!$owned || !$product || $product['status'] === 'unavailable') {
+            $_SESSION['flash_error'] = "Cart item is unavailable.";
             header("Location: cart.php");
             exit;
         }

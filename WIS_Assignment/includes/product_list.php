@@ -63,6 +63,18 @@ $is_best = $is_best ?? false;
                     <?php else: ?>
                         <span class="stock-badge in-stock">In Stock</span>
                     <?php endif; ?>
+
+                    <!-- [Fix] Favorite heart button (❤️) -->
+                    <?php if (is_logged_in() && !is_admin()): ?>
+                        <?php $is_fav = in_array($product['id'], $user_favorites ?? []); ?>
+                        <button type="button" class="btn-favorite <?= $is_fav ? 'is-favorited' : '' ?>" data-product-id="<?= $product['id'] ?>" title="<?= $is_fav ? 'Remove from favorites' : 'Add to favorites' ?>">
+                            <span class="heart-icon"><?= $is_fav ? '❤️' : '🤍' ?></span>
+                        </button>
+                    <?php elseif (!is_logged_in()): ?>
+                        <a href="login.php" class="btn-favorite" title="Login to save favorites">
+                            <span class="heart-icon">🤍</span>
+                        </a>
+                    <?php endif; ?>
                 </div>
 
                 <div class="product-info">

@@ -43,8 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                 }
                 
+                // [Fix] Refund handling: If cancelled order was paid (Card / E-Wallet), update payment_status to 'refunded'
+                $pdo->prepare("UPDATE payments SET payment_status = 'refunded' WHERE order_id = ? AND payment_status = 'completed'")->execute([$order_id]);
+                // If cash payment is pending, mark as 'failed'
+                $pdo->prepare("UPDATE payments SET payment_status = 'failed' WHERE order_id = ? AND payment_status = 'pending'")->execute([$order_id]);
+
                 $pdo->commit();
-                $_SESSION['flash_success'] = "Order #{$order_id} has been cancelled successfully and stock has been restored.";
+                $_SESSION['flash_success'] = "Order #{$order_id} has been cancelled successfully. Stock has been restored and payment refunded.";
             } catch (Exception $e) {
                 $pdo->rollBack();
                 $_SESSION['flash_error'] = "Failed to cancel order: " . $e->getMessage();
@@ -208,7 +213,7 @@ if ($expand_order && $expand_order['status'] === 'Completed' && !empty($expand_i
                                         <form action="orders.php" method="POST" style="margin: 0;">
                                             <input type="hidden" name="action" value="cancel_order">
                                             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
-                                            <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $ord['id'] ?>? This will refund items back into stock immediately.">Cancel</button>
+                                            <button type="submit" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to cancel order #<?= $ord['id'] ?>? Stock will be restored and payment refunded.">Cancel</button>
                                         </form>
                                     <?php endif; ?>
                                 </td>
