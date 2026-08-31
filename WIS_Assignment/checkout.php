@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $req_fields['shipping_address'] = 'Shipping Address';
-            // [Fix] Assign manual shipping address to $resolved_shipping_address when no saved address is selected
+            // Assign manual shipping address to $resolved_shipping_address when no saved address is selected
             // Ensures the address is saved to orders.shipping_address and displayed on receipts and emails
             $resolved_shipping_address = trim($shipping_address);
         }

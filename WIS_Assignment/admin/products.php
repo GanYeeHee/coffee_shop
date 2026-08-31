@@ -22,7 +22,7 @@ if (isset($_POST['action']) && in_array($_POST['action'], $batch_actions, true))
 
     if ($_POST['action'] === 'batch_delete') {
         try {
-            // [Fix] Batch action: Mark selected products as unavailable without deleting records or photos to preserve order history
+            // Batch action: Mark selected products as unavailable without deleting records or photos to preserve order history
             $pdo->prepare("UPDATE products SET status = 'unavailable' WHERE id IN ($ph)")->execute($ids);
 
             echo json_encode([
@@ -294,7 +294,7 @@ if ($action === 'delete' && $id > 0) {
     $prod = $stmt->fetch();
 
     if ($prod) {
-        // [Fix] Soft delete: Mark product as unavailable instead of deleting from database to keep past receipts intact
+        // Soft delete: Mark product as unavailable instead of deleting from database to keep past receipts intact
         $del_stmt = $pdo->prepare("UPDATE products SET status = 'unavailable' WHERE id = ?");
         try {
             $del_stmt->execute([$id]);
@@ -309,7 +309,7 @@ if ($action === 'delete' && $id > 0) {
     exit;
 }
 
-// [Fix] Re-activate product: Restore status from unavailable back to available
+// Re-activate product: Restore status from unavailable back to available
 if ($action === 'restore' && $id > 0) {
     $stmt = $pdo->prepare("SELECT name FROM products WHERE id = ?");
     $stmt->execute([$id]);
@@ -384,7 +384,7 @@ if ($filter_status === 'in_stock') {
 } elseif ($filter_status === 'sold_out') {
     $where[] = "p.stock = 0 AND p.status = 'available'";
 } elseif ($filter_status === 'unavailable') {
-    // [Fix] Filter for unavailable products
+    // Filter for unavailable products
     $where[] = "p.status = 'unavailable'";
 }
 
@@ -459,7 +459,7 @@ unset($_SESSION['flash_error']);
                     <option value="in_stock" <?= $filter_status === 'in_stock' ? 'selected' : '' ?>>In Stock</option>
                     <option value="low_stock" <?= $filter_status === 'low_stock' ? 'selected' : '' ?>>Low Stock</option>
                     <option value="sold_out" <?= $filter_status === 'sold_out' ? 'selected' : '' ?>>Sold Out</option>
-                    <!-- [Fix] Option to filter unavailable products -->
+                    <!-- Option to filter unavailable products -->
                     <option value="unavailable" <?= $filter_status === 'unavailable' ? 'selected' : '' ?>>Unavailable</option>
                 </select>
 
@@ -528,7 +528,7 @@ unset($_SESSION['flash_error']);
                                     <td><?= $p['stock'] ?></td>
                                     <td>
                                         <?php if ($p['status'] === 'unavailable'): ?>
-                                            <!-- [Fix] Display Unavailable badge if product is unavailable -->
+                                            <!-- Display Unavailable badge if product is unavailable -->
                                             <span class="stock-badge inline out-of-stock">Unavailable</span>
                                         <?php elseif ($p['stock'] == 0): ?>
                                             <span class="stock-badge inline out-of-stock">Sold Out</span>
@@ -542,10 +542,10 @@ unset($_SESSION['flash_error']);
                                         <a href="products.php?action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                         <a href="product_options.php?product_id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm">Options</a>
                                         <?php if ($p['status'] === 'unavailable'): ?>
-                                            <!-- [Fix] Provide Make Available button for unavailable products -->
+                                            <!-- Provide Make Available button for unavailable products -->
                                             <a href="products.php?action=restore&id=<?= $p['id'] ?>" class="btn btn-primary btn-sm">Make Available</a>
                                         <?php else: ?>
-                                            <!-- [Fix] Prompt to mark product as unavailable rather than deleting permanently -->
+                                            <!-- Prompt to mark product as unavailable rather than deleting permanently -->
                                             <a href="products.php?action=delete&id=<?= $p['id'] ?>" class="btn btn-danger btn-sm confirm-action" data-confirm-message="Are you sure you want to make product '<?= htmlspecialchars($p['name']) ?>' unavailable?">Delete</a>
                                         <?php endif; ?>
                                     </td>

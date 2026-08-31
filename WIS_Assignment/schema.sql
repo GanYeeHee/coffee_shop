@@ -393,11 +393,8 @@ INSERT INTO `products` (`id`, `category_id`, `name`, `description`, `price`, `st
 -- Product Images: one primary photo per product, plus two extra gallery photos
 -- (product-{id}-2.jpg, product-{id}-3.jpg) so the "one product -> multiple photos"
 -- feature has data to show. All image files live in uploads/products/ and are
--- committed to the repo, so a fresh checkout already has them. Real photos are
--- fetched with tools/fetch_product_photos.php (primary) and
--- tools/fetch_extra_product_photos.php (gallery); placeholders come from
--- tools/generate_placeholder_images.php. Drop a photo in over any file (keep the
--- name) to replace it - no SQL change.
+-- committed to the repo, so a fresh checkout already has them. Drop a photo in
+-- over any file (keep the name) to replace it - no SQL change.
 INSERT INTO `product_images` (`product_id`, `image_path`, `is_primary`)
 SELECT `id`, CONCAT('product-', `id`, '.jpg'), 1 FROM `products`;
 INSERT INTO `product_images` (`product_id`, `image_path`, `is_primary`)
