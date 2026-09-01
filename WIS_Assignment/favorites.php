@@ -1,5 +1,5 @@
 <?php
-// [Feature: Favorites] My Favorites Page for members
+// My Favorites Page for members
 require_once __DIR__ . '/includes/header.php';
 require_login();
 

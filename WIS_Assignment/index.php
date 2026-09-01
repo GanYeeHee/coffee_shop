@@ -64,7 +64,7 @@ if ($is_best) {
     $where = [];
     $params = [];
 
-    // [Fix] Customer storefront only displays available products; hide unavailable products
+    // Customer storefront only displays available products; hide unavailable products
     $where[] = "p.status = 'available'";
 
     if ($cat_id > 0) {
@@ -96,7 +96,7 @@ if ($is_best) {
 
 $pager_params = array_filter(['cat_id' => $is_best ? 'best' : ($cat_id > 0 ? $cat_id : null), 'q' => $search !== '' ? $search : null]);
 
-// [Fix] Fetch product IDs favorited by the current logged-in user
+// Fetch product IDs favorited by the current logged-in user
 $user_favorites = [];
 if (is_logged_in()) {
     $fav_stmt = $pdo->prepare("SELECT product_id FROM user_favorites WHERE user_id = ?");

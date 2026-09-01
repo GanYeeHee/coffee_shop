@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                 }
                 
-                // [Fix] Refund handling: If cancelled order was paid (Card / E-Wallet), update payment_status to 'refunded'
+                // Refund handling: If cancelled order was paid (Card / E-Wallet), update payment_status to 'refunded'
                 $pdo->prepare("UPDATE payments SET payment_status = 'refunded' WHERE order_id = ? AND payment_status = 'completed'")->execute([$order_id]);
                 // If cash payment is pending, mark as 'failed'
                 $pdo->prepare("UPDATE payments SET payment_status = 'failed' WHERE order_id = ? AND payment_status = 'pending'")->execute([$order_id]);

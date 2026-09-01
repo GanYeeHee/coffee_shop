@@ -33,7 +33,7 @@ if ($id > 0) {
         }
         unset($group);
 
-        // [Fix] Check if the logged-in user has favorited this product
+        // Check if the logged-in user has favorited this product
         $is_favorited = false;
         if (is_logged_in()) {
             $fav_stmt = $pdo->prepare("SELECT id FROM user_favorites WHERE user_id = ? AND product_id = ?");
@@ -44,7 +44,7 @@ if ($id > 0) {
 }
 
 if (!$product || ($product['status'] === 'unavailable' && !is_admin())) {
-    // [Fix] If product is marked as unavailable, block non-admin customers and prevent purchasing
+    // If product is marked as unavailable, block non-admin customers and prevent purchasing
     echo '<div class="alert alert-danger">This product is currently unavailable. <a href="index.php">Return to Menu</a></div>';
     require_once __DIR__ . '/includes/footer.php';
     exit;

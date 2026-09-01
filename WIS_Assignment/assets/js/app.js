@@ -562,7 +562,7 @@ $(document).ready(function() {
         });
     }
 
-    // 25. [Feature: Favorites] Toggle favorite heart button handler (❤️ / 🤍)
+    // 25. Toggle favorite heart button handler (❤️ / 🤍)
     $(document).on('click', '.btn-favorite', function (e) {
         var $btn = $(this);
         var productId = $btn.data('product-id');

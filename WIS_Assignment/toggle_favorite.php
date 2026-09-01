@@ -1,5 +1,5 @@
 <?php
-// [Feature: Favorites] Toggle favorite/unfavorite endpoint
+// Toggle favorite/unfavorite endpoint
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/db.php';
 
